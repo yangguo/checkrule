@@ -27,7 +27,6 @@ def get_embedding(rulefolder, emblist):
 def get_rule_data(key_list, industry_choice):
     rulefolder = get_rulefolder(industry_choice)
     plcdf = get_csvdf(rulefolder)
-    # plcval = plcdf[['监管要求', '结构']].drop_duplicates().reset_index(drop=True)
 
     selectdf = plcdf[plcdf['监管要求'].isin(key_list)]
     emblist = selectdf['监管要求'].unique().tolist()
@@ -44,9 +43,7 @@ def get_samplerule(key_list, industry_choice):
 
 
 def searchrule(text, column_text, make_choice, industry_choice, top):
-    # model = SentenceTransformer(sentmodel)
     queries = [text]
-    # query_embeddings = model.encode(queries)
     query_embeddings = roformer_encoder(queries)
 
     searchdf = get_samplerule(make_choice, industry_choice)
@@ -68,9 +65,6 @@ def searchrule(text, column_text, make_choice, industry_choice, top):
     idxlist = []
     number_top_matches = top
     for query, query_embedding in zip(queries, query_embeddings):
-        # distances = scipy.spatial.distance.cdist([query_embedding],
-        #                                          sentence_embeddings,
-        #                                          "cosine")[0]
         distances = scipy.spatial.distance.cdist([query_embedding],
                                                  sub_embedding, "cosine")[0]
 
@@ -118,7 +112,6 @@ def searchByItem(searchresult, make_choice, column_text, item_text):
                           & (searchresult['结构'].str.contains(column_text)) &
                           (searchresult['条款'].str.contains(item_text_list))]
     total = len(plcsam)
-    # resdf = plcsam.reset_index(drop=True)
     return plcsam, total
 
 

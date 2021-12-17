@@ -66,13 +66,11 @@ def roformer_encoder(sentences):
 def get_csvdf(rulefolder):
     files2 = glob.glob(rulefolder + '**/*.csv', recursive=True)
     dflist = []
-    # filelist = []
     for filepath in files2:
         basename = os.path.basename(filepath)
         filename = os.path.splitext(basename)[0]
         newdf = rule2df(filename, filepath)[['监管要求', '结构', '条款']]
         dflist.append(newdf)
-        # filelist.append(filename)
     alldf = pd.concat(dflist, axis=0)
     return alldf
 
@@ -167,7 +165,6 @@ def items2cluster(df,threshold):
     #                                            distance_threshold=0.5)
     clustering_model.fit(corpus_embeddings)
     cluster_assignment = clustering_model.labels_
-    # print(cluster_assignment)
     clustered_sentences = {}
     clustered_idlist = {}
     for sentence_id, cluster_id in enumerate(cluster_assignment):
