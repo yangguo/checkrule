@@ -1,5 +1,5 @@
 ---
-title: Testing
+title: checkrule
 emoji: 🚀
 colorFrom: indigo
 colorTo: green

@@ -1,37 +1,7 @@
-import os
-import glob
-import pandas as pd
-import streamlit as st
 import scipy
-import numpy as np
-from utils import split_words, roformer_encoder,get_csvdf,get_rulefolder
+from utils import split_words, roformer_encoder, get_csvdf, get_rulefolder, get_embedding
 
-rulefolder='rules'
-
-def rule2df(filename, filepath):
-    docdf = pd.read_csv(filepath)
-    docdf['监管要求'] = filename
-    return docdf
-
-
-def get_embedding(rulefolder, emblist):
-    dflist = []
-    for file in emblist:
-        filepath = os.path.join(rulefolder, file + '.npy')
-        embeddings = np.load(filepath)
-        dflist.append(embeddings)
-    alldf = np.concatenate(dflist)
-    return alldf
-
-
-def get_rule_data(key_list, industry_choice):
-    rulefolder = get_rulefolder(industry_choice)
-    plcdf = get_csvdf(rulefolder)
-
-    selectdf = plcdf[plcdf['监管要求'].isin(key_list)]
-    emblist = selectdf['监管要求'].unique().tolist()
-    rule_encode = get_embedding(rulefolder, emblist)
-    return selectdf, rule_encode
+rulefolder = 'rules'
 
 
 def get_samplerule(key_list, industry_choice):
@@ -76,16 +46,6 @@ def searchrule(text, column_text, make_choice, industry_choice, top):
             avglist.append(1 - distance)
 
     return fixruledf.iloc[idxlist]
-
-
-def getresultls(results):
-    resultnum = 3
-    resultls = []
-    for i in range(resultnum):
-        resultstr = results["labels"][i] + "{0:.2f}".format(
-            results["scores"][i])
-        resultls.append(resultstr)
-    return '| '.join(resultls)
 
 
 def searchByName(search_text, industry_choice):
