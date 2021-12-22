@@ -1,5 +1,5 @@
 ---
-title: checkrule
+title: regulation search
 emoji: 🚀
 colorFrom: indigo
 colorTo: green
