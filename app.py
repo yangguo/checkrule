@@ -1,14 +1,15 @@
 import streamlit as st
-
+import pandas as pd
 from checkrule import searchByName, searchByItem, searchrule
 from utils import get_folder_list, get_section_list, items2cluster
+from plc2audit import predict
 
 rulefolder = 'rules'
 
 
 def main():
 
-    st.subheader("监管制度搜索")
+    # st.subheader("监管制度搜索")
     industry_list = get_folder_list(rulefolder)
 
     industry_choice = st.sidebar.selectbox('选择行业:', industry_list)
@@ -30,15 +31,18 @@ def main():
             column_text = '|'.join(column_text)
 
         match = st.sidebar.radio('搜索方式', ('关键字搜索', '模糊搜索'))
+        # initialize session value search_result
+        if 'search_result' not in st.session_state:
+            st.session_state['search_result'] = None
+
+        # placeholder
+        placeholder = st.empty()
 
         if match == '关键字搜索':
             item_text = st.sidebar.text_input('按条文关键字搜索')
             if column_text != '' or item_text != '':
                 plcsam, total = searchByItem(searchresult, make_choice,
                                              column_text, item_text)
-
-                # placeholder
-                placeholder = st.empty()
                 # st.table(plcsam)
                 placeholder.table(plcsam)
                 # search is done
@@ -49,25 +53,31 @@ def main():
                                            file_name='监管制度搜索结果.csv',
                                            mime='text/csv')
 
-                st.sidebar.subheader("聚类分组")
-                s = st.sidebar.slider('分组阈值', max_value=20, value=10)
-                thresholdsort = s / 10
-                st.sidebar.write('分组阈值', thresholdsort)
-                # cluster the result
-                cluster = st.sidebar.button('聚类分组')
-                if cluster:
-                    # empty the table
-                    placeholder.empty()
-                    with st.spinner('正在分组...'):
-                        dfsort, clusternum = items2cluster(
-                            plcsam, thresholdsort)
-                        placeholder.table(dfsort)
-                        # search is done
-                        st.sidebar.success('分组数量: ' + str(clusternum))
-                        st.sidebar.download_button(label='下载分组结果',
-                                                   data=dfsort.to_csv(),
-                                                   file_name='分组结果.csv',
-                                                   mime='text/csv')
+                # st.sidebar.subheader("聚类分组")
+                # s = st.sidebar.slider('分组阈值', max_value=20, value=10)
+                # thresholdsort = s / 10
+                # st.sidebar.write('分组阈值', thresholdsort)
+                # # cluster the result
+                # cluster = st.sidebar.button('聚类分组')
+                # if cluster:
+                #     # empty the table
+                #     placeholder.empty()
+                #     with st.spinner('正在分组...'):
+                #         dfsort, clusternum = items2cluster(
+                #             plcsam, thresholdsort)
+                #         placeholder.table(dfsort)
+                #         # search is done
+                #         st.sidebar.success('分组数量: ' + str(clusternum))
+                #         st.sidebar.download_button(label='下载分组结果',
+                #                                    data=dfsort.to_csv(),
+                #                                    file_name='分组结果.csv',
+                #                                    mime='text/csv')
+                #     resuledf=dfsort
+                # else:
+                resuledf = plcsam
+            else:
+                st.sidebar.warning('请输入搜索条件')
+                resuledf = st.session_state['search_result']
 
         elif match == '模糊搜索':
             search_text = st.sidebar.text_area('输入搜索条件')
@@ -82,7 +92,9 @@ def main():
                 with st.spinner('正在搜索...'):
                     resuledf = searchrule(search_text, column_text,
                                           make_choice, industry_choice, top)
-                    st.table(resuledf)
+                    # st.table(resuledf)
+                    # placeholder = st.empty()
+                    placeholder.table(resuledf)
                     # search is done
                     st.sidebar.success('搜索完成')
                     st.sidebar.write('共搜索到' + str(resuledf.shape[0]) + '条结果')
@@ -90,8 +102,110 @@ def main():
                                                data=resuledf.to_csv(),
                                                file_name='监管条文搜索结果.csv',
                                                mime='text/csv')
-        st.sidebar.subheader("搜索范围")
-        st.sidebar.write(make_choice)
+            else:
+                st.sidebar.warning('请输入搜索条件')
+                resuledf = st.session_state['search_result']
+
+        # st.sidebar.subheader("搜索范围")
+        # st.sidebar.write(make_choice)
+        # save the search result
+        # st.write('保存搜索结果')
+        # st.write(resuledf)
+        st.session_state['search_result'] = resuledf
+
+        if resuledf is not None and resuledf.shape[0] > 0:
+            # get proc_list and length
+            proc_list = resuledf['条款'].tolist()
+            proc_len = len(proc_list)
+        else:
+           return
+
+        # generate the audit result
+        st.sidebar.subheader("生成审计程序")
+
+        gen_num = st.sidebar.slider('自动生成数量',
+                                    min_value=1,
+                                    max_value=10,
+                                    value=1)
+
+        # choose max length of auditproc
+        max_length = st.sidebar.slider('文本长度',
+                                       min_value=25,
+                                       max_value=200,
+                                       value=70)
+
+        # choose start and end index
+        start_idx = st.sidebar.number_input('选择开始索引',
+                                            min_value=0,
+                                            max_value=proc_len - 1,
+                                            value=0)
+        end_idx = st.sidebar.number_input('选择结束索引',
+                                          min_value=start_idx,
+                                          max_value=proc_len - 1,
+                                          value=proc_len - 1)
+
+        generate = st.sidebar.button('生成审计程序')
+
+        if generate:
+            placeholder.empty()
+            # read search result from session
+            resuledf = st.session_state['search_result']
+            # st.write('搜索结果')
+            # st.table(resuledf)
+            # get proc_list and length
+            proc_list = resuledf['条款'].tolist()
+            # get proc_list and audit_list
+            subproc_list = proc_list[start_idx:end_idx + 1]
+
+            # split list into batch of 5
+            batch_num = 5
+            proc_list_batch = [
+                subproc_list[i:i + batch_num]
+                for i in range(0, len(subproc_list), batch_num)
+            ]
+
+            dfls = []
+            # get proc and audit batch
+            for j, proc_batch in enumerate(proc_list_batch):
+
+                with st.spinner('处理中...'):
+                    # range of the batch
+                    start = j * batch_num + 1
+                    end = start + len(proc_batch) - 1
+
+                    st.subheader('审计程序: ' + f'{start}-{end}')
+
+                    # get audit list
+                    audit_batch = predict(proc_batch, 8, gen_num, max_length)
+                    auditls = []
+                    for i, proc in enumerate(proc_batch):
+                        # audit range with stride x
+                        audit_start = i * gen_num
+                        audit_end = audit_start + gen_num
+                        # get audit list
+                        audit_list = audit_batch[audit_start:audit_end]
+                        auditls.append(audit_list)
+                        count = str(j * batch_num + i + 1)
+                        # print proc,index and audit list
+                        st.warning('审计要求 ' + count + ':')
+                        st.write(proc)
+                        # print audit list
+                        st.info('审计程序 ' + count + ': ')
+                        for audit in audit_list:
+                            st.write(audit)
+                        # convert to dataframe
+                    df = pd.DataFrame({'审计要求': proc_batch, '审计程序': auditls})
+                    dfls.append(df)
+
+            # conversion is done
+            st.sidebar.success('处理完成!')
+            # if dfls not empty
+            if dfls:
+                alldf = pd.concat(dfls)
+                st.sidebar.download_button(label='下载结果',
+                                           data=alldf.to_csv(),
+                                           file_name='plc2auditresult.csv',
+                                           mime='text/csv')
 
 
 if __name__ == '__main__':
