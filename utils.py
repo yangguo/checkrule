@@ -4,17 +4,23 @@ import pandas as pd
 import streamlit as st
 import torch
 import asyncio
-
+import spacy
 from textrank4zh import TextRank4Sentence
 from sklearn.cluster import AgglomerativeClustering
 
+from keybert import KeyBERT
+from sentence_transformers import SentenceTransformer
 from transformers import RoFormerModel, RoFormerTokenizer
 
 modelfolder = 'junnyu/roformer_chinese_sim_char_ft_base'
-rulefolder = 'rules'
 
 tokenizer = RoFormerTokenizer.from_pretrained(modelfolder)
 model = RoFormerModel.from_pretrained(modelfolder)
+
+smodel = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+nlp = spacy.load('zh_core_web_lg')
+
+rulefolder = 'rules'
 
 
 # def async sent2emb(sentences):
@@ -192,3 +198,121 @@ def get_rulefolder(industry_choice):
     # join folder with industry_choice
     folder = os.path.join(rulefolder, industry_choice)
     return folder
+
+
+# cut text into words using spacy
+def cut_sentences(text):
+    # nlp = spacy.load('zh_core_web_trf')
+    # cut text into words
+    doc = nlp(text)
+    sents = [t.text for t in doc]
+    # sents = jieba.lcut(text,use_paddle=True)
+    return sents
+
+
+# get keyword list using keybert
+def keybert_keywords(text, top_n=3):
+    doc = ' '.join(cut_sentences(text))
+    bertModel = KeyBERT(model=smodel)
+    # keywords = bertModel.extract_keywords(doc,keyphrase_ngram_range=(1,1),stop_words=None,top_n=top_n)
+    #mmr
+    keywords = bertModel.extract_keywords(doc,
+                                          keyphrase_ngram_range=(1, 1),
+                                          stop_words='english',
+                                          use_mmr=True,
+                                          diversity=0.7,
+                                          top_n=top_n)
+    keyls = []
+    for (key, val) in keywords:
+        keyls.append(key)
+    return keyls
+
+
+# convert text spacy to word embedding
+def text2emb(text):
+    doc = nlp(text)
+    return doc
+
+
+# find similar words in doc embedding
+def find_similar_words(words, doc, threshold_key=0.5, top_n=3):
+    # nlp = spacy.load('zh_core_web_trf')
+
+    # compute similarity
+    similarities = {}
+    for word in words:
+        tok = nlp(word)
+        similarities[tok.text] = {}
+        for tok_ in doc:
+            similarities[tok.text].update({tok_.text: tok.similarity(tok_)})
+    # sort
+    topk = lambda x: {
+        k: v
+        for k, v in sorted(similarities[x].items(),
+                           key=lambda item: item[1],
+                           reverse=True)[:top_n]
+    }
+    result = {word: topk(word) for word in words}
+    # filter by threshold
+    result_filter = {
+        word: {k: v
+               for k, v in result[word].items() if v >= threshold_key}
+        for word in result
+    }
+    return result_filter
+
+
+# get similarity using keywords between two docs
+def get_similar_keywords(keyls, audit_list, key_top_n=3, threshold_key=0.5):
+
+    audit_keywords = dict()
+    # emptyls = []
+    for idx, audit in enumerate(audit_list):
+
+        doc = text2emb(audit)
+        result = find_similar_words(keyls, doc, threshold_key, top_n=key_top_n)
+        # st.write(result)
+        subls = []
+        for key in keyls:
+            subls.append(list(result[key].keys()))
+        # flatten subls
+        subls = [item for sub in subls for item in sub]
+        # remove duplicates
+        subls = list(set(subls))
+        # st.write(subls)
+        audit_keywords[idx] = subls
+
+        # get audit_keywords keys sorted by value length
+        audit_keywords_sorted = sorted(audit_keywords.items(),
+                                       key=lambda x: len(x[1]),
+                                       reverse=True)
+        # st.write(audit_keywords_sorted)
+        # get keys of audit_keywords_sorted if length > 0
+        audit_keywords_keys = [
+            key for key, value in audit_keywords_sorted if len(value) > 0
+        ]
+        # audit_keywords_keys = [key for key, value in audit_keywords_sorted]
+
+        # get audit_list using audit_keywords_keys
+        # audit_list_sorted = [audit_list[key] for key in audit_keywords_keys]
+    return audit_keywords_keys
+
+
+# get most similar from list of sentences
+def get_most_similar(keyls, audit_list, top_n=3):
+    # st.write(keyls)
+    # st.write(audit_list)
+    # st.write(top_n)
+    audit_list_sorted = get_similar_keywords(keyls,
+                                             audit_list,
+                                             key_top_n=3,
+                                             threshold_key=0.5)
+    # st.write(audit_list_sorted)
+    return audit_list_sorted[:top_n]
+
+
+# combine df columns into one field and return a list
+def combine_df_columns(df, cols):
+    df_combined = df[cols].apply(lambda x: ' '.join(x), axis=1)
+    # return list
+    return df_combined.tolist()
