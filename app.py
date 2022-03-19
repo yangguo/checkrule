@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import ast
 from checkrule import searchByName, searchByItem, searchrule
-from utils import get_folder_list, get_section_list, items2cluster,keybert_keywords,get_most_similar,combine_df_columns
+from utils import get_folder_list, get_section_list, items2cluster, keybert_keywords, get_most_similar, combine_df_columns
 from plc2audit import predict
 
 rulefolder = 'rules'
@@ -43,18 +43,20 @@ def main():
         if match == '关键字搜索':
             item_text = st.sidebar.text_input('按条文关键字搜索')
             # radio to choose whether to use the new keywords
-            use_new_keywords=st.sidebar.radio('精确模式', ('否', '是'))
- 
+            use_new_keywords = st.sidebar.radio('精确模式', ('否', '是'))
+
             if column_text != '' or item_text != '':
                 fullresultdf, total = searchByItem(searchresult, make_choice,
-                                             column_text, item_text)
-                new_keywords_list=item_text.split()
-        
-                if use_new_keywords=='是':
+                                                   column_text, item_text)
+                new_keywords_list = item_text.split()
+
+                if use_new_keywords == '是' and len(fullresultdf) > 0:
                     # proc_list = fullresultdf['条款'].tolist()
-                    proc_list=combine_df_columns(fullresultdf,['结构','条款'])
-                    top=len(proc_list)
-                    subidx=get_most_similar(new_keywords_list,proc_list, top_n=top)
+                    proc_list = combine_df_columns(fullresultdf, ['结构', '条款'])
+                    top = len(proc_list)
+                    subidx = get_most_similar(new_keywords_list,
+                                              proc_list,
+                                              top_n=top)
                     # st.write('关键词匹配结果：')
                     # st.write(subidx)
                     # get subuploaddf based on index list
@@ -62,12 +64,16 @@ def main():
                 else:
                     resultdf = fullresultdf
 
-                # st.table(plcsam)
-                placeholder.table(resultdf)
+                if resultdf.empty:
+                    placeholder.text('没有搜索结果')
+                else:
+                    # reset index
+                    resultdf = resultdf.reset_index(drop=True)
+                    placeholder.table(resultdf)
                 # search is done
-                st.sidebar.success('搜索完成')
-                st.sidebar.write('共搜索到' + str(total) + '条结果')
-                st.sidebar.download_button(label='下载结果',
+                # st.sidebar.success('搜索完成')
+                st.sidebar.success('共搜索到' + str(total) + '条结果')
+                st.sidebar.download_button(label='下载搜索结果',
                                            data=resultdf.to_csv(),
                                            file_name='监管制度搜索结果.csv',
                                            mime='text/csv')
@@ -100,18 +106,20 @@ def main():
 
         elif match == '模糊搜索':
             search_text = st.sidebar.text_area('输入搜索条件')
-            # get keywords list
-            keylist = keybert_keywords(search_text)
-            # convert to string
-            keyliststr = ' '.join(keylist)
-
-            # display keywords_list
-            new_keywords_str=st.sidebar.text_input('关键词列表：', keyliststr)
-            # convert to list
-            new_keywords_list=new_keywords_str.split()
             # radio to choose whether to use the new keywords
-            use_new_keywords=st.sidebar.radio('精确模式', ('否', '是'))
-         
+            use_new_keywords = st.sidebar.radio('精确模式', ('否', '是'))
+
+            if use_new_keywords == '是':
+                # get keywords list
+                keylist = keybert_keywords(search_text)
+                # convert to string
+                keyliststr = ' '.join(keylist)
+
+                # display keywords_list
+                new_keywords_str = st.sidebar.text_input('关键词列表：', keyliststr)
+                # convert to list
+                new_keywords_list = new_keywords_str.split()
+
             top = st.sidebar.slider('匹配数量选择',
                                     min_value=1,
                                     max_value=10,
@@ -122,27 +130,31 @@ def main():
             if search:
                 with st.spinner('正在搜索...'):
                     fullresultdf = searchrule(search_text, column_text,
-                                          make_choice, industry_choice, top*5)
+                                              make_choice, industry_choice,
+                                              top * 5)
 
-                    if use_new_keywords=='是':
+                    if use_new_keywords == '是':
                         # proc_list = fullresultdf['条款'].tolist()
-                        proc_list=combine_df_columns(fullresultdf,['结构','条款'])
+                        proc_list = combine_df_columns(fullresultdf,
+                                                       ['结构', '条款'])
 
-                        subidx=get_most_similar(new_keywords_list,proc_list, top_n=top)
+                        subidx = get_most_similar(new_keywords_list,
+                                                  proc_list,
+                                                  top_n=top)
                         # st.write('关键词匹配结果：')
                         # st.write(subidx)
                         # get subuploaddf based on index list
                         resultdf = fullresultdf.iloc[subidx]
                     else:
                         resultdf = fullresultdf[:top]
-    
-                    # st.table(resultdf)
-                    # placeholder = st.empty()
+
+                    # reset index
+                    resultdf.reset_index(drop=True, inplace=True)
                     placeholder.table(resultdf)
                     # search is done
-                    st.sidebar.success('搜索完成')
-                    st.sidebar.write('共搜索到' + str(resultdf.shape[0]) + '条结果')
-                    st.sidebar.download_button(label='下载结果',
+                    # st.sidebar.success('搜索完成')
+                    st.sidebar.success('共搜索到' + str(resultdf.shape[0]) + '条结果')
+                    st.sidebar.download_button(label='下载搜索结果',
                                                data=resultdf.to_csv(),
                                                file_name='监管条文搜索结果.csv',
                                                mime='text/csv')
@@ -162,32 +174,36 @@ def main():
             proc_list = resultdf['条款'].tolist()
             proc_len = len(proc_list)
         else:
-           return
+            return
 
+        # st.write('搜索结果数量：' + str(proc_len))
         # generate the audit result
-        st.sidebar.subheader("生成审计程序")
+        st.sidebar.subheader("自动生成审计程序")
+        # use expender
+        with st.sidebar.expander("参数设置",expanded=False):
+            gen_num = st.slider('文本数量', min_value=1, max_value=10, value=1)
 
-        gen_num = st.sidebar.slider('自动生成数量',
-                                    min_value=1,
-                                    max_value=10,
-                                    value=1)
+            # choose max length of auditproc
+            max_length = st.slider('文本长度',
+                                   min_value=25,
+                                   max_value=200,
+                                   value=70)
 
-        # choose max length of auditproc
-        max_length = st.sidebar.slider('文本长度',
-                                    min_value=25,
-                                    max_value=200,
-                                    value=70)
-
-        # choose start and end index
-        start_idx = st.sidebar.number_input('选择开始索引',
-                                            min_value=0,
-                                            max_value=proc_len - 1,
-                                            value=0)
-
-        end_idx = st.sidebar.number_input('选择结束索引',
-                                        min_value=start_idx,
+            # choose start and end index
+            start_idx = st.number_input('选择开始索引',
+                                        min_value=0,
                                         max_value=proc_len - 1,
-                                        value=proc_len - 1)
+                                        )
+            # st.write('开始索引：' + str(start_idx))
+            # change idx to int
+            start_idx = int(start_idx)
+            end_idx = st.number_input('选择结束索引',
+                                      min_value=start_idx,
+                                      max_value=proc_len - 1,
+                                      value=proc_len - 1)
+
+        # st.write(start_idx)
+        # st.write(end_idx)
 
         generate = st.sidebar.button('生成审计程序')
 
@@ -199,6 +215,9 @@ def main():
             # st.table(resultdf)
             # get proc_list and length
             proc_list = resultdf['条款'].tolist()
+            # change idx to int
+            start_idx = int(start_idx)
+            end_idx = int(end_idx)
             # get proc_list and audit_list
             subproc_list = proc_list[start_idx:end_idx + 1]
 
@@ -232,7 +251,7 @@ def main():
                         auditls.append(audit_list)
                         count = str(j * batch_num + i + 1)
                         # print proc,index and audit list
-                        st.warning('审计要求 ' + count + ': '+ proc)
+                        st.warning('审计要求 ' + count + ': ' + proc)
                         # st.write(proc)
                         # print audit list
                         st.info('审计程序 ' + count + ': ')
@@ -251,6 +270,8 @@ def main():
                                            data=alldf.to_csv(),
                                            file_name='plc2auditresult.csv',
                                            mime='text/csv')
+        # clear the session
+        # st.session_state['search_result'] = None
 
 
 if __name__ == '__main__':
