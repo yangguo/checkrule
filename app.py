@@ -1,16 +1,18 @@
-from numpy import full
 import streamlit as st
 import pandas as pd
-import ast
-from checkrule import searchByName, searchByItem, searchrule
+from checkrule import searchByName, searchByItem, searchrule,get_ruletree
 from utils import get_folder_list, get_section_list, items2cluster, keybert_keywords, get_most_similar, combine_df_columns
 from plc2audit import predict
 
 rulefolder = 'rules'
 
+# set page layout to wide
+st.set_page_config(page_title="Check Rule", layout="wide")
 
 def main():
-
+    # display rule tree
+    st.markdown('### 法规体系')
+    get_ruletree()
     # st.subheader("监管制度搜索")
     industry_list = get_folder_list(rulefolder)
 

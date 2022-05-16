@@ -109,3 +109,5 @@ textrank4zh
 spacy_transformers
 scikit-learn
 kaleido
+streamlit-echarts
+keybert
