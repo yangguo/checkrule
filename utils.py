@@ -11,6 +11,9 @@ from sklearn.cluster import AgglomerativeClustering
 from keybert import KeyBERT
 from sentence_transformers import SentenceTransformer
 from transformers import RoFormerModel, RoFormerTokenizer
+from st_aggrid import AgGrid
+from st_aggrid.grid_options_builder import GridOptionsBuilder
+from st_aggrid.shared import GridUpdateMode
 
 modelfolder = 'junnyu/roformer_chinese_sim_char_ft_base'
 
@@ -316,3 +319,29 @@ def combine_df_columns(df, cols):
     df_combined = df[cols].apply(lambda x: ' '.join(x), axis=1)
     # return list
     return df_combined.tolist()
+
+
+def df2aggrid(df):
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_pagination()
+    gb.configure_side_bar()
+    # gb.configure_auto_height()
+    gb.configure_default_column(groupable=True,
+                                value=True,
+                                # resizable=True,
+                                # wrap_text=True,
+                                enableRowGroup=True,
+                                aggFunc="sum",
+                                editable=True)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gridOptions = gb.build()
+    ag_grid = AgGrid(df,
+                     theme='blue',
+                    #  height=800,
+                     fit_columns_on_grid_load=True,# fit columns to grid width
+                     gridOptions=gridOptions,# grid options
+                    #  key='select_grid', # key is used to identify the grid
+                     update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    #  update_mode=GridUpdateMode.NO_UPDATE,
+                     enable_enterprise_modules=True)
+    return ag_grid

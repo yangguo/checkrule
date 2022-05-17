@@ -1,5 +1,5 @@
 import scipy
-from utils import split_words, roformer_encoder, get_csvdf, get_rulefolder, get_embedding
+from utils import split_words, roformer_encoder, get_csvdf, get_rulefolder, get_embedding,df2aggrid
 import ast
 from streamlit_echarts import st_echarts
 import streamlit as st
@@ -8,6 +8,8 @@ import pandas as pd
 rulefolder = 'rules'
 secpath='rules/sec1.csv'
 plcpath='rules/lawdfall0507.csv'
+metapath='rules/lawmeta0517.csv'
+dtlpath='rules/lawdtl0517.csv'
 
 def get_samplerule(key_list, industry_choice):
     rulefolder = get_rulefolder(industry_choice)
@@ -184,4 +186,54 @@ def get_ruletree():
         total = len(plclsdf)
         # display name,ids and total
         st.info('{} id: {} 总数: {}'.format(name, ids, total))
-        st.table(plclsdf)
+        # st.table(plclsdf)
+        # display lawdetail
+        display_lawdetail(plclsdf)
+
+
+def get_lawdtlbyid(ids):
+    metadf = pd.read_csv(metapath)
+    metadf = metadf[metadf['secFutrsLawId'].isin(ids)]
+    metacols=['secFutrsLawName', 'secFutrsLawNameAnno', 'wtAnttnSecFutrsLawName',
+       'secFutrsLawVersion', 'fileno', 'body', 'bodyAgoCntnt']
+    metadf=metadf[metacols]
+    # fillna to empty
+    metadf=metadf.fillna('')
+    metadf.columns=['文件名称','文件名称注解','法律条文名称','法律条文版本','文号','正文','正文注解']
+    metadf = metadf.reset_index(drop=True)
+    dtldf=pd.read_csv(dtlpath)
+    dtldf=dtldf[dtldf['id'].isin(ids)]
+    dtlcol=['title', 'cntnt_x', 'cntnt_y']
+    dtldf=dtldf[dtlcol]
+    # fillna all columns with ''
+    dtldf = dtldf.fillna('')
+    # change column name
+    dtldf.columns = ['标题', '内容', '法规条款']
+    dtldf=dtldf.reset_index(drop=True)
+    return metadf,dtldf
+
+# display event detail
+def display_lawdetail(search_df):
+ 
+    data=df2aggrid(search_df)
+    # display data
+    selected_rows = data["selected_rows"]
+    if selected_rows==[]:
+        st.error('请先选择查看详情')
+        st.stop()
+
+    # display selected rows
+    st.markdown('选择法规:')
+    # convert selected rows to dataframe
+    selected_df = pd.DataFrame(selected_rows)
+    st.table(selected_df)
+    # get id
+    idls = selected_df['id'].tolist()
+    # st.write(idls)
+    metadf,dtldf=get_lawdtlbyid(idls)
+    # display meta data
+    st.markdown('法规元数据:')
+    st.table(metadf)
+    # display detail data
+    st.markdown('法规详情:')
+    st.table(dtldf)

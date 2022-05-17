@@ -7,7 +7,7 @@ from plc2audit import predict
 rulefolder = 'rules'
 
 # set page layout to wide
-st.set_page_config(page_title="Check Rule", layout="wide")
+# st.set_page_config(page_title="Check Rule", layout="wide")
 
 def main():
     # display rule tree
