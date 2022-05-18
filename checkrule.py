@@ -175,9 +175,30 @@ def get_rulelist(idls):
     return plclsdf
 
 
+# get rule list by name,fileno,org
+def get_rulelist_byname(name,fileno,org):
+    plcdf=pd.read_csv(plcpath)
+    # fillna 
+    plcdf=plcdf.fillna('')
+
+    plclsdf=plcdf[plcdf['secFutrsLawName'].str.contains(name)&plcdf['fileno'].str.contains(fileno)&plcdf['lawPubOrgName'].str.contains(org)]
+    # reset index
+    plclsdf=plclsdf.reset_index(drop=True)
+    cols=['secFutrsLawName', 'fileno','lawPubOrgName','secFutrsLawVersion','secFutrsLawId']
+    plclsdf=plclsdf[cols]
+    # change column name
+    plclsdf.columns=['文件名称','文号','发文单位','发文日期','id']
+    return plclsdf
+
+
 def get_ruletree():
     secdf = pd.read_csv(secpath)
     selected=df2echart(secdf)
+    # selected is None
+    if selected is None:
+        st.error('请选择一个法规分类')
+        return
+    
     if selected is not None:
         [name, ids] = selected
         idls = get_allchildren(secdf, ids)
@@ -187,6 +208,8 @@ def get_ruletree():
         # display name,ids and total
         st.info('{} id: {} 总数: {}'.format(name, ids, total))
         # st.table(plclsdf)
+        # fillna 
+        # plclsdf=plclsdf.fillna('')
         # display lawdetail
         display_lawdetail(plclsdf)
 
