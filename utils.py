@@ -334,6 +334,10 @@ def df2aggrid(df):
                                 aggFunc="sum",
                                 editable=True)
     gb.configure_selection(selection_mode="single", use_checkbox=True)
+    # configure column visibility
+    gb.configure_column(field="lawid", hide=True)
+    gb.configure_column(field="id", hide=True)
+
     gridOptions = gb.build()
     ag_grid = AgGrid(df,
                      theme='blue',

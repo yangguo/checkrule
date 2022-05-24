@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from checkrule import searchByName, searchByItem, searchrule,get_ruletree,get_rulelist_byname,get_lawdtlbyid,display_lawdetail
+from checkrule import searchByName, searchByItem, searchrule,get_ruletree,get_rulelist_byname,get_lawdtlbyid,display_lawdetail,get_orglist
 from utils import get_folder_list, get_section_list, items2cluster, keybert_keywords, get_most_similar, combine_df_columns
 from plc2audit import predict
 
@@ -18,40 +18,42 @@ def main():
     industry_choice = st.sidebar.selectbox('选择行业:', industry_list)
 
     if industry_choice == '全部':
-        # display rule tree
-        st.markdown('### 法规体系')
 
         # choose search type using radio
         search_type = st.sidebar.radio('搜索类型', ['法规结构', '法规搜索'])
         if search_type=='法规结构':
+            # display rule tree
+            st.markdown('### 法规体系')
             get_ruletree()
         elif search_type=='法规搜索':
-            # input file name
-            law_name = st.sidebar.text_input('文件名称')
-            # input fileno
-            fileno = st.sidebar.text_input('文号')
-            # input org name
-            org_name = st.sidebar.text_input('发文单位')
+            st.markdown('### 法规搜索')
+            # get org list
+            orgdf = get_orglist()
+            # get org list
+            org_list = orgdf['name'].tolist()
+            # use column container
+            col1, col2 = st.columns(2)
+            with col1:
+                # input file name
+                law_name = st.text_input('文件名称')
+                # input start date, default is 2020-01-01
+                
+                start_date = st.date_input('开始日期', value=pd.Timestamp('2020-01-01'))
+                # input org name
+                org_name = st.multiselect('发文单位', org_list)
+
+            with col2:
+                # input fileno
+                fileno = st.text_input('文号')
+                # input end date
+                end_date = st.date_input('结束日期')
             # if both are empty
-            if law_name == '' and fileno == '' and org_name == '':
+            if law_name == '' and fileno == '' and org_name == []:
                 st.error('请输入搜索关键词')
                 st.stop()
-
-            ruledf=get_rulelist_byname(law_name,fileno,org_name)
+            ruledf=get_rulelist_byname(law_name,fileno,org_name,start_date,end_date)
             display_lawdetail(ruledf)
 
-            # # get law ids
-            # ids=ruledf['id'].tolist()
-            # # get law detail by id
-            # metadf,dtldf=get_lawdtlbyid(ids)
-            # # display law meta
-            # st.write('监管法规')
-            # st.table(metadf)
-            # # get law detail by article
-            # articledf=dtldf[dtldf['标题'].str.contains(article_name)]
-            # # display law detail
-            # st.write('监管条文')
-            # st.table(articledf)
     else:
         name_text = ''
         searchresult, choicels = searchByName(name_text, industry_choice)

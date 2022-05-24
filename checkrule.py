@@ -10,6 +10,7 @@ secpath='rules/sec1.csv'
 plcpath='rules/lawdfall0507.csv'
 metapath='rules/lawmeta0517.csv'
 dtlpath='rules/lawdtl0517.csv'
+orgpath='rules/org1.csv'
 
 def get_samplerule(key_list, industry_choice):
     rulefolder = get_rulefolder(industry_choice)
@@ -162,33 +163,61 @@ def get_allchildren(df,ids):
     return result
 
 
+# get org list
+@st.cache(allow_output_mutation=True)
+def get_orglist():
+    plcdf=pd.read_csv(orgpath)
+    cols=['id','pId','name']
+    plcdf=plcdf[cols]
+    plcdf=plcdf.reset_index(drop=True)
+    return plcdf
+
+
+# get plcdf
+@st.cache(allow_output_mutation=True)
+def get_plcdf():
+    plcdf=pd.read_csv(plcpath)
+    cols=['secFutrsLawName', 'fileno','lawPubOrgName','secFutrsLawVersion','secFutrsLawId','id']
+    plcdf=plcdf[cols]
+    # replace lawAthrtyStsCde mapping to chinese
+    # plcdf['lawAthrtyStsCde']=plcdf['lawAthrtyStsCde'].astype(str).replace({'1':'现行有效','2':'已被修改','3':'已被废止'})
+    # change column name
+    plcdf.columns=['文件名称','文号','发文单位','发文日期','lawid','id']
+    # convert column with format yyyymmdd to datetime
+    plcdf['发文日期']=pd.to_datetime(plcdf['发文日期'],format='%Y%m%d',errors='coerce').dt.date
+    plcdf=plcdf.reset_index(drop=True)
+    return plcdf
+
+
 # get rule list by id
 def get_rulelist(idls):
-    plcdf=pd.read_csv(plcpath)
+    plcdf=get_plcdf()
     plclsdf=plcdf[plcdf['id'].isin(idls)]
     # reset index
     plclsdf=plclsdf.reset_index(drop=True)
-    cols=['secFutrsLawName', 'fileno','lawPubOrgName','secFutrsLawVersion','secFutrsLawId']
-    plclsdf=plclsdf[cols]
-    # change column name
-    plclsdf.columns=['文件名称','文号','发文单位','发文日期','id']
     return plclsdf
 
 
-# get rule list by name,fileno,org
-def get_rulelist_byname(name,fileno,org):
-    plcdf=pd.read_csv(plcpath)
-    # fillna 
-    plcdf=plcdf.fillna('')
-
-    plclsdf=plcdf[plcdf['secFutrsLawName'].str.contains(name)&plcdf['fileno'].str.contains(fileno)&plcdf['lawPubOrgName'].str.contains(org)]
+# get rule list by name,fileno,org,startdate,enddate
+def get_rulelist_byname(name,fileno,org,startdate,enddate):
+    plcdf=get_plcdf()
+    # convert org list to str
+    orgstr='|'.join(org)
+    # name split words
+    name_list=split_words(name)
+    # fileno split words
+    fileno_list=split_words(fileno)
+    # search
+    searchresult=plcdf[(plcdf['文件名称'].str.contains(name_list)) &
+                          (plcdf['文号'].str.contains(fileno_list)) &
+                            (plcdf['发文单位'].str.contains(orgstr)) &
+                            (plcdf['发文日期']>=startdate) &
+                            (plcdf['发文日期']<=enddate)]
     # reset index
-    plclsdf=plclsdf.reset_index(drop=True)
-    cols=['secFutrsLawName', 'fileno','lawPubOrgName','secFutrsLawVersion','secFutrsLawId']
-    plclsdf=plclsdf[cols]
-    # change column name
-    plclsdf.columns=['文件名称','文号','发文单位','发文日期','id']
-    return plclsdf
+    searchresult=searchresult.reset_index(drop=True)
+    # sort by date
+    searchresult=searchresult.sort_values(by='发文日期',ascending=False)
+    return searchresult
 
 
 def get_ruletree():
@@ -202,6 +231,7 @@ def get_ruletree():
     if selected is not None:
         [name, ids] = selected
         idls = get_allchildren(secdf, ids)
+        # st.write(idls)
         plclsdf = get_rulelist(idls)
         # get total
         total = len(plclsdf)
@@ -237,7 +267,7 @@ def get_lawdtlbyid(ids):
 
 # display event detail
 def display_lawdetail(search_df):
- 
+
     data=df2aggrid(search_df)
     # display data
     selected_rows = data["selected_rows"]
@@ -249,9 +279,13 @@ def display_lawdetail(search_df):
     st.markdown('选择法规:')
     # convert selected rows to dataframe
     selected_df = pd.DataFrame(selected_rows)
-    st.table(selected_df)
+    # st.table(selected_df)
     # get id
-    idls = selected_df['id'].tolist()
+    idls = selected_df['lawid'].tolist()
+    # hide column id
+    selected_df = selected_df.drop(columns=['lawid','id'])
+    # display selected rows
+    st.table(selected_df)
     # st.write(idls)
     metadf,dtldf=get_lawdtlbyid(idls)
     # display meta data
