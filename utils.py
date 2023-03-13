@@ -8,50 +8,50 @@ import spacy
 from textrank4zh import TextRank4Sentence
 from sklearn.cluster import AgglomerativeClustering
 
-from keybert import KeyBERT
-from sentence_transformers import SentenceTransformer
-from transformers import RoFormerModel, RoFormerTokenizer
+# from keybert import KeyBERT
+# from sentence_transformers import SentenceTransformer
+# from transformers import RoFormerModel, RoFormerTokenizer
 from st_aggrid import AgGrid
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 from st_aggrid.shared import GridUpdateMode
 
 modelfolder = 'junnyu/roformer_chinese_sim_char_ft_base'
 
-tokenizer = RoFormerTokenizer.from_pretrained(modelfolder)
-model = RoFormerModel.from_pretrained(modelfolder)
+# tokenizer = RoFormerTokenizer.from_pretrained(modelfolder)
+# model = RoFormerModel.from_pretrained(modelfolder)
 
-smodel = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+# smodel = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 nlp = spacy.load('zh_core_web_lg')
 
 rulefolder = 'rules'
 
 
 # def async sent2emb(sentences):
-def sent2emb_async(sentences):
-    """
-    run sent2emb in async mode
-    """
-    # create new loop
-    loop = asyncio.new_event_loop()
-    # run async code
-    asyncio.set_event_loop(loop)
-    # run code
-    task = loop.run_until_complete(sent2emb(sentences))
-    # close loop
-    loop.close()
-    return task
+# def sent2emb_async(sentences):
+#     """
+#     run sent2emb in async mode
+#     """
+#     # create new loop
+#     loop = asyncio.new_event_loop()
+#     # run async code
+#     asyncio.set_event_loop(loop)
+#     # run code
+#     task = loop.run_until_complete(sent2emb(sentences))
+#     # close loop
+#     loop.close()
+#     return task
 
 
-async def sent2emb(sents):
-    embls = []
-    for sent in sents:
-        # get summary of sent
-        summarize = get_summary(sent)
-        sentence_embedding = roformer_encoder(summarize)
-        embls.append(sentence_embedding)
-    # count += 1
-    all_embeddings = np.concatenate(embls)
-    return all_embeddings
+# async def sent2emb(sents):
+#     embls = []
+#     for sent in sents:
+#         # get summary of sent
+#         summarize = get_summary(sent)
+#         sentence_embedding = roformer_encoder(summarize)
+#         embls.append(sentence_embedding)
+#     # count += 1
+#     all_embeddings = np.concatenate(embls)
+#     return all_embeddings
 
 
 # get summary of text
@@ -75,25 +75,25 @@ def mean_pooling(model_output, attention_mask):
         input_mask_expanded.sum(1), min=1e-9)
 
 
-def roformer_encoder(sentences):
-    # Tokenize sentences
-    encoded_input = tokenizer(sentences,
-                              max_length=512,
-                              padding=True,
-                              truncation=True,
-                              return_tensors='pt')
+# def roformer_encoder(sentences):
+#     # Tokenize sentences
+#     encoded_input = tokenizer(sentences,
+#                               max_length=512,
+#                               padding=True,
+#                               truncation=True,
+#                               return_tensors='pt')
 
-    # Compute token embeddings
-    with torch.no_grad():
-        model_output = model(**encoded_input)
+#     # Compute token embeddings
+#     with torch.no_grad():
+#         model_output = model(**encoded_input)
 
-    # Perform pooling. In this case, max pooling.
-    sentence_embeddings = mean_pooling(
-        model_output, encoded_input['attention_mask']).numpy()
-    return sentence_embeddings
+#     # Perform pooling. In this case, max pooling.
+#     sentence_embeddings = mean_pooling(
+#         model_output, encoded_input['attention_mask']).numpy()
+#     return sentence_embeddings
 
 
-@st.cache
+# @st.cache
 def get_csvdf(rulefolder):
     files2 = glob.glob(rulefolder + '**/*.csv', recursive=True)
     dflist = []
@@ -153,39 +153,39 @@ def get_section_list(searchresult, make_choice):
 
 
 # conver items to cluster
-def items2cluster(df, threshold):
-    corpus = df['条款'].tolist()
-    # get embedding
-    embeddings = sent2emb_async(corpus)
-    # Normalize the embeddings to unit length
-    corpus_embeddings = embeddings / np.linalg.norm(
-        embeddings, axis=1, keepdims=True)
+# def items2cluster(df, threshold):
+#     corpus = df['条款'].tolist()
+#     # get embedding
+#     embeddings = sent2emb_async(corpus)
+#     # Normalize the embeddings to unit length
+#     corpus_embeddings = embeddings / np.linalg.norm(
+#         embeddings, axis=1, keepdims=True)
 
-    # Perform kmean clustering
-    clustering_model = AgglomerativeClustering(n_clusters=None,
-                                               distance_threshold=threshold)
-    #                                            affinity='cosine',
-    #                                            linkage='complete',
-    #                                            distance_threshold=0.5)
-    clustering_model.fit(corpus_embeddings)
-    cluster_assignment = clustering_model.labels_
-    clustered_sentences = {}
-    clustered_idlist = {}
-    for sentence_id, cluster_id in enumerate(cluster_assignment):
-        if cluster_id not in clustered_sentences:
-            clustered_sentences[cluster_id] = []
-            clustered_idlist[cluster_id] = []
-        clustered_sentences[cluster_id].append(corpus[sentence_id])
-        clustered_idlist[cluster_id].append(sentence_id)
+#     # Perform kmean clustering
+#     clustering_model = AgglomerativeClustering(n_clusters=None,
+#                                                distance_threshold=threshold)
+#     #                                            affinity='cosine',
+#     #                                            linkage='complete',
+#     #                                            distance_threshold=0.5)
+#     clustering_model.fit(corpus_embeddings)
+#     cluster_assignment = clustering_model.labels_
+#     clustered_sentences = {}
+#     clustered_idlist = {}
+#     for sentence_id, cluster_id in enumerate(cluster_assignment):
+#         if cluster_id not in clustered_sentences:
+#             clustered_sentences[cluster_id] = []
+#             clustered_idlist[cluster_id] = []
+#         clustered_sentences[cluster_id].append(corpus[sentence_id])
+#         clustered_idlist[cluster_id].append(sentence_id)
 
-    # reset index
-    dfbefore = df.reset_index(drop=True)
-    for key, value in clustered_idlist.items():
-        dfbefore.loc[value, '分组'] = str(key)
+#     # reset index
+#     dfbefore = df.reset_index(drop=True)
+#     for key, value in clustered_idlist.items():
+#         dfbefore.loc[value, '分组'] = str(key)
 
-    dfsort = dfbefore.sort_values(by='分组')
-    clusternum = len(clustered_idlist.keys())
-    return dfsort, clusternum
+#     dfsort = dfbefore.sort_values(by='分组')
+#     clusternum = len(clustered_idlist.keys())
+#     return dfsort, clusternum
 
 
 # get folder name list from path
@@ -214,21 +214,21 @@ def cut_sentences(text):
 
 
 # get keyword list using keybert
-def keybert_keywords(text, top_n=3):
-    doc = ' '.join(cut_sentences(text))
-    bertModel = KeyBERT(model=smodel)
-    # keywords = bertModel.extract_keywords(doc,keyphrase_ngram_range=(1,1),stop_words=None,top_n=top_n)
-    #mmr
-    keywords = bertModel.extract_keywords(doc,
-                                          keyphrase_ngram_range=(1, 1),
-                                          stop_words='english',
-                                          use_mmr=True,
-                                          diversity=0.7,
-                                          top_n=top_n)
-    keyls = []
-    for (key, val) in keywords:
-        keyls.append(key)
-    return keyls
+# def keybert_keywords(text, top_n=3):
+#     doc = ' '.join(cut_sentences(text))
+#     bertModel = KeyBERT(model=smodel)
+#     # keywords = bertModel.extract_keywords(doc,keyphrase_ngram_range=(1,1),stop_words=None,top_n=top_n)
+#     #mmr
+#     keywords = bertModel.extract_keywords(doc,
+#                                           keyphrase_ngram_range=(1, 1),
+#                                           stop_words='english',
+#                                           use_mmr=True,
+#                                           diversity=0.7,
+#                                           top_n=top_n)
+#     keyls = []
+#     for (key, val) in keywords:
+#         keyls.append(key)
+#     return keyls
 
 
 # convert text spacy to word embedding
