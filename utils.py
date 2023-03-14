@@ -1,12 +1,12 @@
 import os, glob
 import numpy as np
 import pandas as pd
-import streamlit as st
-import torch
-import asyncio
-import spacy
-from textrank4zh import TextRank4Sentence
-from sklearn.cluster import AgglomerativeClustering
+# import streamlit as st
+# import torch
+# import asyncio
+# import spacy
+# from textrank4zh import TextRank4Sentence
+# from sklearn.cluster import AgglomerativeClustering
 
 # from keybert import KeyBERT
 # from sentence_transformers import SentenceTransformer
@@ -21,7 +21,7 @@ modelfolder = 'junnyu/roformer_chinese_sim_char_ft_base'
 # model = RoFormerModel.from_pretrained(modelfolder)
 
 # smodel = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-nlp = spacy.load('zh_core_web_lg')
+# nlp = spacy.load('zh_core_web_lg')
 
 rulefolder = 'rules'
 
@@ -55,24 +55,24 @@ rulefolder = 'rules'
 
 
 # get summary of text
-def get_summary(text):
-    tr4s = TextRank4Sentence()
-    tr4s.analyze(text=text, lower=True, source='all_filters')
-    sumls = []
-    for item in tr4s.get_key_sentences(num=3):
-        sumls.append(item.sentence)
-    summary = ''.join(sumls)
-    return summary
+# def get_summary(text):
+#     tr4s = TextRank4Sentence()
+#     tr4s.analyze(text=text, lower=True, source='all_filters')
+#     sumls = []
+#     for item in tr4s.get_key_sentences(num=3):
+#         sumls.append(item.sentence)
+#     summary = ''.join(sumls)
+#     return summary
 
 
 # Mean Pooling - Take attention mask into account for correct averaging
-def mean_pooling(model_output, attention_mask):
-    # First element of model_output contains all token embeddings
-    token_embeddings = model_output[0]
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(
-        token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
-        input_mask_expanded.sum(1), min=1e-9)
+# def mean_pooling(model_output, attention_mask):
+#     # First element of model_output contains all token embeddings
+#     token_embeddings = model_output[0]
+#     input_mask_expanded = attention_mask.unsqueeze(-1).expand(
+#         token_embeddings.size()).float()
+#     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
+#         input_mask_expanded.sum(1), min=1e-9)
 
 
 # def roformer_encoder(sentences):
@@ -204,13 +204,13 @@ def get_rulefolder(industry_choice):
 
 
 # cut text into words using spacy
-def cut_sentences(text):
-    # nlp = spacy.load('zh_core_web_trf')
-    # cut text into words
-    doc = nlp(text)
-    sents = [t.text for t in doc]
-    # sents = jieba.lcut(text,use_paddle=True)
-    return sents
+# def cut_sentences(text):
+#     # nlp = spacy.load('zh_core_web_trf')
+#     # cut text into words
+#     doc = nlp(text)
+#     sents = [t.text for t in doc]
+#     # sents = jieba.lcut(text,use_paddle=True)
+#     return sents
 
 
 # get keyword list using keybert
@@ -232,86 +232,86 @@ def cut_sentences(text):
 
 
 # convert text spacy to word embedding
-def text2emb(text):
-    doc = nlp(text)
-    return doc
+# def text2emb(text):
+#     doc = nlp(text)
+#     return doc
 
 
 # find similar words in doc embedding
-def find_similar_words(words, doc, threshold_key=0.5, top_n=3):
-    # nlp = spacy.load('zh_core_web_trf')
+# def find_similar_words(words, doc, threshold_key=0.5, top_n=3):
+#     # nlp = spacy.load('zh_core_web_trf')
 
-    # compute similarity
-    similarities = {}
-    for word in words:
-        tok = nlp(word)
-        similarities[tok.text] = {}
-        for tok_ in doc:
-            similarities[tok.text].update({tok_.text: tok.similarity(tok_)})
-    # sort
-    topk = lambda x: {
-        k: v
-        for k, v in sorted(similarities[x].items(),
-                           key=lambda item: item[1],
-                           reverse=True)[:top_n]
-    }
-    result = {word: topk(word) for word in words}
-    # filter by threshold
-    result_filter = {
-        word: {k: v
-               for k, v in result[word].items() if v >= threshold_key}
-        for word in result
-    }
-    return result_filter
+#     # compute similarity
+#     similarities = {}
+#     for word in words:
+#         tok = nlp(word)
+#         similarities[tok.text] = {}
+#         for tok_ in doc:
+#             similarities[tok.text].update({tok_.text: tok.similarity(tok_)})
+#     # sort
+#     topk = lambda x: {
+#         k: v
+#         for k, v in sorted(similarities[x].items(),
+#                            key=lambda item: item[1],
+#                            reverse=True)[:top_n]
+#     }
+#     result = {word: topk(word) for word in words}
+#     # filter by threshold
+#     result_filter = {
+#         word: {k: v
+#                for k, v in result[word].items() if v >= threshold_key}
+#         for word in result
+#     }
+#     return result_filter
 
 
 # get similarity using keywords between two docs
-def get_similar_keywords(keyls, audit_list, key_top_n=3, threshold_key=0.5):
+# def get_similar_keywords(keyls, audit_list, key_top_n=3, threshold_key=0.5):
 
-    audit_keywords = dict()
-    # emptyls = []
-    for idx, audit in enumerate(audit_list):
+#     audit_keywords = dict()
+#     # emptyls = []
+#     for idx, audit in enumerate(audit_list):
 
-        doc = text2emb(audit)
-        result = find_similar_words(keyls, doc, threshold_key, top_n=key_top_n)
-        # st.write(result)
-        subls = []
-        for key in keyls:
-            subls.append(list(result[key].keys()))
-        # flatten subls
-        subls = [item for sub in subls for item in sub]
-        # remove duplicates
-        subls = list(set(subls))
-        # st.write(subls)
-        audit_keywords[idx] = subls
+#         doc = text2emb(audit)
+#         result = find_similar_words(keyls, doc, threshold_key, top_n=key_top_n)
+#         # st.write(result)
+#         subls = []
+#         for key in keyls:
+#             subls.append(list(result[key].keys()))
+#         # flatten subls
+#         subls = [item for sub in subls for item in sub]
+#         # remove duplicates
+#         subls = list(set(subls))
+#         # st.write(subls)
+#         audit_keywords[idx] = subls
 
-        # get audit_keywords keys sorted by value length
-        audit_keywords_sorted = sorted(audit_keywords.items(),
-                                       key=lambda x: len(x[1]),
-                                       reverse=True)
-        # st.write(audit_keywords_sorted)
-        # get keys of audit_keywords_sorted if length > 0
-        audit_keywords_keys = [
-            key for key, value in audit_keywords_sorted if len(value) > 0
-        ]
-        # audit_keywords_keys = [key for key, value in audit_keywords_sorted]
+#         # get audit_keywords keys sorted by value length
+#         audit_keywords_sorted = sorted(audit_keywords.items(),
+#                                        key=lambda x: len(x[1]),
+#                                        reverse=True)
+#         # st.write(audit_keywords_sorted)
+#         # get keys of audit_keywords_sorted if length > 0
+#         audit_keywords_keys = [
+#             key for key, value in audit_keywords_sorted if len(value) > 0
+#         ]
+#         # audit_keywords_keys = [key for key, value in audit_keywords_sorted]
 
-        # get audit_list using audit_keywords_keys
-        # audit_list_sorted = [audit_list[key] for key in audit_keywords_keys]
-    return audit_keywords_keys
+#         # get audit_list using audit_keywords_keys
+#         # audit_list_sorted = [audit_list[key] for key in audit_keywords_keys]
+#     return audit_keywords_keys
 
 
 # get most similar from list of sentences
-def get_most_similar(keyls, audit_list, top_n=3):
-    # st.write(keyls)
-    # st.write(audit_list)
-    # st.write(top_n)
-    audit_list_sorted = get_similar_keywords(keyls,
-                                             audit_list,
-                                             key_top_n=3,
-                                             threshold_key=0.5)
-    # st.write(audit_list_sorted)
-    return audit_list_sorted[:top_n]
+# def get_most_similar(keyls, audit_list, top_n=3):
+#     # st.write(keyls)
+#     # st.write(audit_list)
+#     # st.write(top_n)
+#     audit_list_sorted = get_similar_keywords(keyls,
+#                                              audit_list,
+#                                              key_top_n=3,
+#                                              threshold_key=0.5)
+#     # st.write(audit_list_sorted)
+#     return audit_list_sorted[:top_n]
 
 
 # combine df columns into one field and return a list

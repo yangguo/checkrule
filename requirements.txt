@@ -111,3 +111,4 @@ scikit-learn
 kaleido
 streamlit-echarts
 keybert
+chromadb

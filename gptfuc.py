@@ -3,7 +3,7 @@ import json
 import os
 import pickle
 from pathlib import Path
-
+import pandas as pd
 import faiss
 import pinecone
 
@@ -93,11 +93,13 @@ else:
 #     return response
 
 
-def build_ruleindex(df):
+def build_ruleindex(df,industry=""):
     """
     Ingests data into LangChain by creating an FAISS index of OpenAI embeddings for text files in a folder "fileraw".
     The created index is saved to a file in the folder "fileidx".
     """
+    collection_name = industry_name_to_code(industry)
+
     # get text list from df
     docs = df["条款"].tolist()
     # build metadata
@@ -111,12 +113,12 @@ def build_ruleindex(df):
 
 
     # use chroma
-    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name='ruledb')
+    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name=collection_name)
     store.delete_collection()
 
-    store = Chroma.from_texts(docs, embeddings,metadatas=metadata,persist_directory=fileidxfolder,collection_name='ruledb')
-    # store.persist()
-    store=None
+    store = Chroma.from_texts(docs, embeddings,metadatas=metadata,persist_directory=fileidxfolder,collection_name=collection_name)
+    store.persist()
+    # store=None
 
     # use qdrant
     # collection_name = "filedocs"
@@ -149,23 +151,23 @@ def build_ruleindex(df):
 
 
 # create function to add new documents to the index
-def add_to_index():
+def add_ruleindex(df,industry=""):
     """
     Adds new documents to the LangChain index by creating an FAISS index of OpenAI embeddings for text files in a folder "fileraw".
     The created index is saved to a file in the folder "fileidx".
     """
-
-    loader = DirectoryLoader(filerawfolder, glob="**/*.txt")
-    documents = loader.load()
-    text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    collection_name = industry_name_to_code(industry)
+    # loader = DirectoryLoader(filerawfolder, glob="**/*.txt")
+    # documents = loader.load()
+    # text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     # text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 
     # use tiktoken
     # text_splitter = CharacterTextSplitter.from_tiktoken_encoder(chunk_size=500, chunk_overlap=0)
-    docs = text_splitter.split_documents(documents)
+    # docs = text_splitter.split_documents(documents)
     # print("docs",docs)
     # get faiss client
-    store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
+    # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
     # qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
@@ -174,9 +176,21 @@ def add_to_index():
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
 
     # Create vector store from documents and save to disk
-    store.add_documents(docs)
-    store.save_local(fileidxfolder)
+    # store.add_documents(docs)
+    # store.save_local(fileidxfolder)
 
+    # get text list from df
+    docs = df["条款"].tolist()
+    # build metadata
+    metadata = df[['监管要求','结构']].to_dict(orient="records")
+
+    embeddings = OpenAIEmbeddings()
+
+    # get chroma
+    store = Chroma(persist_directory=fileidxfolder, embedding_function=embeddings,collection_name=collection_name)
+    # add to chroma
+    store.add_texts(docs,metadatas=metadata)
+    store.persist()
 
 # list all indexes using qdrant
 def list_indexes():
@@ -191,7 +205,8 @@ def list_indexes():
     return collection_names
 
 
-def gpt_answer(question, chaintype="stuff"):
+def gpt_answer(question, chaintype="stuff",industry=""):
+    collection_name = industry_name_to_code(industry)
     # get faiss client
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
@@ -202,8 +217,9 @@ def gpt_answer(question, chaintype="stuff"):
     # # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
 
+    embeddings=OpenAIEmbeddings()
     # get chroma
-    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings())
+    store = Chroma(persist_directory=fileidxfolder, embedding_function=embeddings,collection_name=collection_name)
 
     prefix_messages = [
         {
@@ -221,7 +237,8 @@ def gpt_answer(question, chaintype="stuff"):
     return result
 
 
-def gpt_vectoranswer(question):
+def similarity_search(question,topk=4,industry="",items=[]):
+    collection_name = industry_name_to_code(industry)
     # get faiss client
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
@@ -231,20 +248,74 @@ def gpt_vectoranswer(question):
     # # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
     # get chroma
-    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name='ruledb')
+    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name=collection_name)
 
     # get milvus
     # store = Milvus(
     # embedding_function=OpenAIEmbeddings(),
     # connection_args={"host": "127.0.0.1", "port": "19530"},
     # )
-    filter={'监管要求':'商业银行业务连续性监管指引'}
+    filter={
+    "监管要求": {
+        "$eq": "商业银行信息科技风险管理指引"
+    }
+    }
     # filter={
-    #     "监管要求": {
-    #         "$eq": "商业银行业务连续性监管指引"
+    # "$or": [
+    #     {
+    #         "监管要求": "银行业金融机构重要信息系统投产及变更管理办法"
+    #     },
+    #     {
+    #         "监管要求": "商业银行信息科技风险管理指引"
     #     }
+    # ]
     # }
-    filter=None
-    result = store.similarity_search_with_score(question,filter=filter)
+    filter = convert_list_to_dict(items)
+    # print(filter)
+    docs = store.similarity_search(question,k=topk,filter=filter)
+    df = docs_to_df(docs)
+    return df
 
-    return result
+
+# convert document list to pandas dataframe
+def docs_to_df(docs):
+    """
+    Converts a list of documents to a pandas dataframe.
+    """
+    data = []
+    for document in docs:
+        page_content = document.page_content
+        metadata = document.metadata
+        plc=metadata['监管要求']
+        sec=metadata['结构']
+        row = {"条款": page_content, "监管要求": plc, "结构": sec}
+        data.append(row)
+    df = pd.DataFrame(data)
+    return df
+    
+
+# convert industry chinese name to english name
+def industry_name_to_code(industry_name):
+    """
+    Converts an industry name to an industry code.
+    """
+    industry_name = industry_name.lower()
+    if industry_name == "银行":
+        return "bank"
+    elif industry_name == "保险":
+        return "insurance"
+    elif industry_name == "证券":
+        return "securities"
+    elif industry_name == "基金":
+        return "fund"
+    elif industry_name == "期货":
+        return "futures"
+    else:
+        return "other"
+
+
+def convert_list_to_dict(lst):
+    if len(lst) == 1:
+        return {"监管要求": lst[0]}
+    else:
+        return {"$or": [{"监管要求": item} for item in lst]}

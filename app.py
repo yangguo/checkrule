@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
 from checkrule import searchByName, searchByItem, get_ruletree,get_rulelist_byname,get_lawdtlbyid,display_lawdetail,get_orglist#searchrule,
-from utils import get_folder_list, get_section_list,  get_most_similar, combine_df_columns #keybert_keywords
-from plc2audit import predict
-from gptfuc import build_ruleindex,gpt_vectoranswer,gpt_answer
+from utils import get_folder_list, get_section_list,  combine_df_columns #keybert_keywords get_most_similar, 
+# from plc2audit import predict
+from gptfuc import build_ruleindex,similarity_search,add_ruleindex,gpt_answer
 
 rulefolder = 'rules'
+
+
 
 # set page layout to wide
 # st.set_page_config(page_title="Check Rule", layout="wide")
@@ -70,7 +72,7 @@ def main():
         else:
             column_text = '|'.join(column_text)
 
-        match = st.sidebar.radio('搜索方式', ('关键字搜索', '模糊搜索','生成模型','智能问答'))
+        match = st.sidebar.radio('搜索方式', ('关键字搜索', '模糊搜索','智能问答','生成模型'))
         # initialize session value search_result
         if 'search_result' not in st.session_state:
             st.session_state['search_result'] = None
@@ -81,26 +83,26 @@ def main():
         if match == '关键字搜索':
             item_text = st.sidebar.text_input('按条文关键字搜索')
             # radio to choose whether to use the new keywords
-            use_new_keywords = st.sidebar.radio('精确模式（+章节信息）', ('否', '是'))
+            # use_new_keywords = st.sidebar.radio('精确模式（+章节信息）', ('否', '是'))
 
             if column_text != '' or item_text != '':
                 fullresultdf, total = searchByItem(searchresult, make_choice,
                                                    column_text, item_text)
                 new_keywords_list = item_text.split()
 
-                if use_new_keywords == '是' and len(fullresultdf) > 0:
-                    # proc_list = fullresultdf['条款'].tolist()
-                    proc_list = combine_df_columns(fullresultdf, ['结构', '条款'])
-                    top = len(proc_list)
-                    subidx = get_most_similar(new_keywords_list,
-                                              proc_list,
-                                              top_n=top)
-                    # st.write('关键词匹配结果：')
-                    # st.write(subidx)
-                    # get subuploaddf based on index list
-                    resultdf = fullresultdf.iloc[subidx]
-                else:
-                    resultdf = fullresultdf
+                # if use_new_keywords == '是' and len(fullresultdf) > 0:
+                #     # proc_list = fullresultdf['条款'].tolist()
+                #     proc_list = combine_df_columns(fullresultdf, ['结构', '条款'])
+                #     top = len(proc_list)
+                #     subidx = get_most_similar(new_keywords_list,
+                #                               proc_list,
+                #                               top_n=top)
+                #     # st.write('关键词匹配结果：')
+                #     # st.write(subidx)
+                #     # get subuploaddf based on index list
+                #     resultdf = fullresultdf.iloc[subidx]
+                # else:
+                resultdf = fullresultdf
 
                 if resultdf.empty:
                     placeholder.text('没有搜索结果')
@@ -170,7 +172,7 @@ def main():
                     # fullresultdf = searchrule(search_text, column_text,
                     #                           make_choice, industry_choice,
                     #                           top * 5)
-                    fullresultdf=None
+                    resultdf=similarity_search(search_text,top,industry_choice,make_choice)
                     # if use_new_keywords == '是':
                     #     # proc_list = fullresultdf['条款'].tolist()
                     #     proc_list = combine_df_columns(fullresultdf,
@@ -184,10 +186,10 @@ def main():
                     #     # get subuploaddf based on index list
                     #     resultdf = fullresultdf.iloc[subidx]
                     # else:
-                    resultdf = fullresultdf[:top]
+                    # resultdf = fullresultdf[:top]
 
                     # reset index
-                    resultdf.reset_index(drop=True, inplace=True)
+                    # resultdf.reset_index(drop=True, inplace=True)
                     placeholder.table(resultdf)
                     # search is done
                     # st.sidebar.success('搜索完成')
@@ -215,26 +217,36 @@ def main():
             fullresultdf, total = searchByItem(searchresult, make_choice,
                                                    column_text, '')
             st.write(fullresultdf)
-            metadata = fullresultdf[['监管要求','结构']].to_dict(orient="records")
-            st.write(metadata)
+            # metadata = fullresultdf[['监管要求','结构']].to_dict(orient="records")
+            # st.write(metadata)
             # button to build model
-            build_model = st.button('生成模型')
+            build_model = st.button('新建模型')
             if build_model:
                 with st.spinner('正在生成模型...'):
-                    build_ruleindex(fullresultdf)
+                    build_ruleindex(fullresultdf,industry_choice)
                     st.success('模型生成完成')
+
+            add_model = st.button('添加模型')
+            if add_model:
+                with st.spinner('正在添加模型...'):
+                    add_ruleindex(fullresultdf,industry_choice)
+                    st.success('模型添加完成')
 
         elif match == '智能问答':
             st.subheader('智能问答')
 
             # input question
             question = st.text_area('输入问题')
-            # button to search
+
+            # choose chain type
+            chain_type = st.selectbox(
+                "选择链条类型", ["stuff", "map_reduce", "refine", "map_rerank"]
+            )            # button to search
             search = st.button('搜索')
             if search:
                 with st.spinner('正在搜索...'):
                     # search answer
-                    answer = gpt_vectoranswer(question)
+                    answer = gpt_answer(question,chain_type,industry_choice)
                     st.write(answer)
 
 
