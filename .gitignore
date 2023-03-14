@@ -150,3 +150,7 @@ dmypy.json
 
 ruleidx
 config.json
+
+volumes
+
+.gitpod.yml

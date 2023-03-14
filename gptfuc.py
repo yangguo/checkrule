@@ -21,7 +21,7 @@ from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
 )
-from langchain.vectorstores import FAISS, Chroma, Pinecone, Qdrant
+from langchain.vectorstores import FAISS, Chroma, Pinecone, Qdrant,Milvus
 from qdrant_client import QdrantClient
 
 # import requests
@@ -105,9 +105,18 @@ def build_ruleindex(df):
 
     embeddings = OpenAIEmbeddings()
     # Create vector store from documents and save to disk
-    store = FAISS.from_texts(docs, embeddings,metadatas=metadata)
-    # store = FAISS.from_documents(docs, embeddings)
-    store.save_local(fileidxfolder)
+    # store = FAISS.from_texts(docs, embeddings,metadatas=metadata)
+    # # store = FAISS.from_documents(docs, embeddings)
+    # store.save_local(fileidxfolder)
+
+
+    # use chroma
+    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name='ruledb')
+    store.delete_collection()
+
+    store = Chroma.from_texts(docs, embeddings,metadatas=metadata,persist_directory=fileidxfolder,collection_name='ruledb')
+    # store.persist()
+    store=None
 
     # use qdrant
     # collection_name = "filedocs"
@@ -119,6 +128,14 @@ def build_ruleindex(df):
     # index_name = "langchain1"
     # docsearch = Pinecone.from_documents(docs, embeddings, index_name=index_name)
     # return docsearch
+
+    # use milvus
+    # vector_db = Milvus.from_texts(
+    # docs,
+    # embeddings,
+    # connection_args={"host": "127.0.0.1", "port": "19530"},
+    # # metadatas=metadata
+    # )
 
 
 # def split_text(text, chunk_chars=4000, overlap=50):
@@ -176,7 +193,7 @@ def list_indexes():
 
 def gpt_answer(question, chaintype="stuff"):
     # get faiss client
-    store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
+    # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
     # qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
@@ -184,6 +201,9 @@ def gpt_answer(question, chaintype="stuff"):
     # collection_name = "filedocs"
     # # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
+
+    # get chroma
+    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings())
 
     prefix_messages = [
         {
@@ -203,14 +223,28 @@ def gpt_answer(question, chaintype="stuff"):
 
 def gpt_vectoranswer(question):
     # get faiss client
-    store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
+    # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
     # qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
     # collection_name = "filedocs"
     # # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
+    # get chroma
+    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name='ruledb')
 
-    result = store.similarity_search_with_score(question)
+    # get milvus
+    # store = Milvus(
+    # embedding_function=OpenAIEmbeddings(),
+    # connection_args={"host": "127.0.0.1", "port": "19530"},
+    # )
+    filter={'监管要求':'商业银行业务连续性监管指引'}
+    # filter={
+    #     "监管要求": {
+    #         "$eq": "商业银行业务连续性监管指引"
+    #     }
+    # }
+    filter=None
+    result = store.similarity_search_with_score(question,filter=filter)
 
     return result
