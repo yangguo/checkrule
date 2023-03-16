@@ -3,13 +3,16 @@ import json
 import os
 import pickle
 from pathlib import Path
-import pandas as pd
+
 import faiss
+import pandas as pd
 import pinecone
 
 # from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 from langchain.chains import VectorDBQA
+from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.chains.question_answering import load_qa_chain
+from langchain.chat_models import ChatOpenAI
 
 # from langchain.document_loaders import TextLoader
 from langchain.document_loaders import DirectoryLoader
@@ -17,11 +20,18 @@ from langchain.embeddings import OpenAIEmbeddings
 
 # from langchain.indexes import VectorstoreIndexCreator
 from langchain.llms import OpenAIChat
+from langchain.prompts.chat import (
+    AIMessagePromptTemplate,
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
+)
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
 )
-from langchain.vectorstores import FAISS, Chroma, Pinecone, Qdrant,Milvus
+from langchain.vectorstores import FAISS, Chroma, Milvus, Pinecone, Qdrant
 from qdrant_client import QdrantClient
 
 # import requests
@@ -93,7 +103,7 @@ else:
 #     return response
 
 
-def build_ruleindex(df,industry=""):
+def build_ruleindex(df, industry=""):
     """
     Ingests data into LangChain by creating an FAISS index of OpenAI embeddings for text files in a folder "fileraw".
     The created index is saved to a file in the folder "fileidx".
@@ -103,7 +113,7 @@ def build_ruleindex(df,industry=""):
     # get text list from df
     docs = df["条款"].tolist()
     # build metadata
-    metadata = df[['监管要求','结构']].to_dict(orient="records")
+    metadata = df[["监管要求", "结构"]].to_dict(orient="records")
 
     embeddings = OpenAIEmbeddings()
     # Create vector store from documents and save to disk
@@ -111,12 +121,21 @@ def build_ruleindex(df,industry=""):
     # # store = FAISS.from_documents(docs, embeddings)
     # store.save_local(fileidxfolder)
 
-
     # use chroma
-    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name=collection_name)
+    store = Chroma(
+        persist_directory=fileidxfolder,
+        embedding_function=OpenAIEmbeddings(),
+        collection_name=collection_name,
+    )
     store.delete_collection()
 
-    store = Chroma.from_texts(docs, embeddings,metadatas=metadata,persist_directory=fileidxfolder,collection_name=collection_name)
+    store = Chroma.from_texts(
+        docs,
+        embeddings,
+        metadatas=metadata,
+        persist_directory=fileidxfolder,
+        collection_name=collection_name,
+    )
     store.persist()
     # store=None
 
@@ -151,7 +170,7 @@ def build_ruleindex(df,industry=""):
 
 
 # create function to add new documents to the index
-def add_ruleindex(df,industry=""):
+def add_ruleindex(df, industry=""):
     """
     Adds new documents to the LangChain index by creating an FAISS index of OpenAI embeddings for text files in a folder "fileraw".
     The created index is saved to a file in the folder "fileidx".
@@ -182,15 +201,20 @@ def add_ruleindex(df,industry=""):
     # get text list from df
     docs = df["条款"].tolist()
     # build metadata
-    metadata = df[['监管要求','结构']].to_dict(orient="records")
+    metadata = df[["监管要求", "结构"]].to_dict(orient="records")
 
     embeddings = OpenAIEmbeddings()
 
     # get chroma
-    store = Chroma(persist_directory=fileidxfolder, embedding_function=embeddings,collection_name=collection_name)
+    store = Chroma(
+        persist_directory=fileidxfolder,
+        embedding_function=embeddings,
+        collection_name=collection_name,
+    )
     # add to chroma
-    store.add_texts(docs,metadatas=metadata)
+    store.add_texts(docs, metadatas=metadata)
     store.persist()
+
 
 # list all indexes using qdrant
 def list_indexes():
@@ -205,7 +229,7 @@ def list_indexes():
     return collection_names
 
 
-def gpt_answer(question, chaintype="stuff",industry=""):
+def gpt_answer(question, chaintype="stuff", industry="", top_k=4):
     collection_name = industry_name_to_code(industry)
     # get faiss client
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
@@ -217,27 +241,58 @@ def gpt_answer(question, chaintype="stuff",industry=""):
     # # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
 
-    embeddings=OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings()
     # get chroma
-    store = Chroma(persist_directory=fileidxfolder, embedding_function=embeddings,collection_name=collection_name)
+    store = Chroma(
+        persist_directory=fileidxfolder,
+        embedding_function=embeddings,
+        collection_name=collection_name,
+    )
 
-    prefix_messages = [
-        {
-            "role": "system",
-            # "content": "You are a helpful assistant that is very good at problem solving who thinks step by step.",
-            "content": "你是一位十分善于解决问题、按步骤思考的专业顾问。",
-        }
+    # prefix_messages = [
+    #     {
+    #         "role": "system",
+    #         # "content": "You are a helpful assistant that is very good at problem solving who thinks step by step.",
+    #         "content": "你是一位十分善于解决问题、按步骤思考的专业顾问。",
+    #     }
+    # ]
+    # llm = OpenAIChat(temperature=0, prefix_messages=prefix_messages)
+
+    system_template = """Use the following pieces of context to answer the users question. 
+    If you don't know the answer, just say that you don't know, don't try to make up an answer.
+    ----------------
+    {context}"""
+    messages = [
+        SystemMessagePromptTemplate.from_template(system_template),
+        HumanMessagePromptTemplate.from_template("{question}"),
     ]
-    llm = OpenAIChat(temperature=0, prefix_messages=prefix_messages)
+    prompt = ChatPromptTemplate.from_messages(messages)
 
-    chain = VectorDBQA.from_chain_type(llm, chain_type=chaintype, vectorstore=store)
+    chain_type_kwargs = {"prompt": prompt}
+    llm = ChatOpenAI()
+    chain = VectorDBQA.from_chain_type(
+        llm,
+        chain_type=chaintype,
+        vectorstore=store,
+        k=top_k,
+        return_source_documents=True,
+        chain_type_kwargs=chain_type_kwargs,
+    )
+    result = chain({"query": question})
 
-    result = chain.run(question)
+    # docs = store.similarity_search(question)
+    # qa_chain=load_qa_with_sources_chain(llm,chain_type=chaintype)
+    # qa_chain=load_qa_chain(llm,chain_type=chaintype)
+    # result = qa_chain({"input_documents": docs, "question": question}, return_only_outputs=True)
 
-    return result
+    answer = result["result"]
+
+    source = result["source_documents"]
+    sourcedf = docs_to_df(source)
+    return answer, sourcedf
 
 
-def similarity_search(question,topk=4,industry="",items=[]):
+def similarity_search(question, topk=4, industry="", items=[]):
     collection_name = industry_name_to_code(industry)
     # get faiss client
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
@@ -248,18 +303,18 @@ def similarity_search(question,topk=4,industry="",items=[]):
     # # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
     # get chroma
-    store = Chroma(persist_directory=fileidxfolder, embedding_function=OpenAIEmbeddings(),collection_name=collection_name)
+    store = Chroma(
+        persist_directory=fileidxfolder,
+        embedding_function=OpenAIEmbeddings(),
+        collection_name=collection_name,
+    )
 
     # get milvus
     # store = Milvus(
     # embedding_function=OpenAIEmbeddings(),
     # connection_args={"host": "127.0.0.1", "port": "19530"},
     # )
-    filter={
-    "监管要求": {
-        "$eq": "商业银行信息科技风险管理指引"
-    }
-    }
+    filter = {"监管要求": {"$eq": "商业银行信息科技风险管理指引"}}
     # filter={
     # "$or": [
     #     {
@@ -270,9 +325,14 @@ def similarity_search(question,topk=4,industry="",items=[]):
     #     }
     # ]
     # }
-    filter = convert_list_to_dict(items)
-    # print(filter)
-    docs = store.similarity_search(question,k=topk,filter=filter)
+    if items:
+        filter = convert_list_to_dict(items)
+    else:
+        filter = None
+
+    print(filter)
+    # filter=None
+    docs = store.similarity_search(question, k=topk, filter=filter)
     df = docs_to_df(docs)
     return df
 
@@ -286,13 +346,13 @@ def docs_to_df(docs):
     for document in docs:
         page_content = document.page_content
         metadata = document.metadata
-        plc=metadata['监管要求']
-        sec=metadata['结构']
+        plc = metadata["监管要求"]
+        sec = metadata["结构"]
         row = {"条款": page_content, "监管要求": plc, "结构": sec}
         data.append(row)
     df = pd.DataFrame(data)
     return df
-    
+
 
 # convert industry chinese name to english name
 def industry_name_to_code(industry_name):
