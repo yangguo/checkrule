@@ -208,7 +208,8 @@ def main():
 
                     # reset index
                     # resultdf.reset_index(drop=True, inplace=True)
-                    placeholder.table(resultdf)
+                    # placeholder.table(resultdf)
+                    st.write(resultdf)
                     # search is done
                     # st.sidebar.success('搜索完成')
                     st.sidebar.success("共搜索到" + str(resultdf.shape[0]) + "条结果")
@@ -264,12 +265,14 @@ def main():
             chain_type = st.selectbox(
                 "选择链条类型", ["stuff", "map_reduce", "refine", "map_rerank"]
             )  # button to search
+            # choose model
+            model_name = st.selectbox('选择模型', ['gpt-3.5-turbo', 'gpt-4'])
             search = st.button("搜索")
             if search:
                 with st.spinner("正在搜索..."):
                     # search answer
                     answer, source = gpt_answer(
-                        question, chain_type, industry_choice, top
+                        question, chain_type, industry_choice, top, model_name
                     )
                     st.markdown("### 答案：")
                     st.write(answer)

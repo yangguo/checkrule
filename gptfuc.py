@@ -6,7 +6,10 @@ from pathlib import Path
 
 import faiss
 import pandas as pd
-import pinecone
+# import pinecone
+import chromadb
+from chromadb.config import Settings
+from chromadb.utils import embedding_functions
 
 # from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 from langchain.chains import VectorDBQA
@@ -31,9 +34,11 @@ from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
 )
-from langchain.vectorstores import FAISS, Chroma, Milvus, Pinecone, Qdrant
-from qdrant_client import QdrantClient
+from langchain.vectorstores import FAISS, Chroma, Milvus, Pinecone, Qdrant,OpenSearchVectorSearch
+# from qdrant_client import QdrantClient
+# from qdrant_client.http.models import Filter, FieldCondition
 
+# from opensearchpy import OpenSearch
 # import requests
 # from llama_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 
@@ -64,6 +69,24 @@ if openai_api_key is None:
     print("请设置OPENAI_API_KEY")
 else:
     print("已设置OPENAI_API_KEY" + openai_api_key)
+
+host = 'localhost'
+port = 9200
+auth = ('admin', 'admin') # For testing only. Don't store credentials in code.
+# ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
+
+# Create the client with SSL/TLS enabled, but hostname verification disabled.
+# client = OpenSearch(
+#     hosts = [{'host': host, 'port': port}],
+#     http_compress = True, # enables gzip compression for request bodies
+#     http_auth = auth,
+#     use_ssl = True,
+#     verify_certs = True,
+#     ssl_assert_hostname = False,
+#     ssl_show_warn = False,
+#     # ca_certs = ca_certs_path
+# )
+
 
 # initialize pinecone
 # pinecone.init(
@@ -114,6 +137,10 @@ def build_ruleindex(df, industry=""):
     docs = df["条款"].tolist()
     # build metadata
     metadata = df[["监管要求", "结构"]].to_dict(orient="records")
+    # change the key names
+    # for i in range(len(metadata)):
+    #     metadata[i]["regulation"] = metadata[i].pop("监管要求")
+    #     metadata[i]["structure"] = metadata[i].pop("结构")
 
     embeddings = OpenAIEmbeddings()
     # Create vector store from documents and save to disk
@@ -124,12 +151,18 @@ def build_ruleindex(df, industry=""):
     # use chroma
     store = Chroma(
         persist_directory=fileidxfolder,
-        embedding_function=OpenAIEmbeddings(),
+        embedding_function=embeddings,
         collection_name=collection_name,
     )
-    store.delete_collection()
 
-    store = Chroma.from_texts(
+    # collections = store._client.list_collections()
+    # for collection in collections:
+    #     print(collection.name)
+    # store.reset()
+    # store.delete_collection()
+    # store.persist()
+
+    store.from_texts(
         docs,
         embeddings,
         metadatas=metadata,
@@ -141,8 +174,8 @@ def build_ruleindex(df, industry=""):
 
     # use qdrant
     # collection_name = "filedocs"
-    # # Create vector store from documents and save to qdrant
-    # Qdrant.from_documents(docs, embeddings, host=qdrant_host, prefer_grpc=True, collection_name=collection_name)
+    # Create vector store from documents and save to qdrant
+    # Qdrant.from_texts(docs, embeddings,metadatas=metadata, host=qdrant_host, prefer_grpc=True, collection_name=collection_name)
 
     # use pinecone
     # Create vector store from documents and save to pinecone
@@ -155,9 +188,13 @@ def build_ruleindex(df, industry=""):
     # docs,
     # embeddings,
     # connection_args={"host": "127.0.0.1", "port": "19530"},
-    # # metadatas=metadata
+    # metadatas=metadata,
+    # collection_name=collection_name,
+    # text_field="text",
     # )
 
+    # use opensearch
+    # docsearch = OpenSearchVectorSearch.from_texts(docs, embeddings, opensearch_url="http://localhost:9200")
 
 # def split_text(text, chunk_chars=4000, overlap=50):
 #     """
@@ -189,10 +226,9 @@ def add_ruleindex(df, industry=""):
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
-    # qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
-    # collection_name = "filedocs"
+    qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
     # # get qdrant docsearch
-    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
+    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
 
     # Create vector store from documents and save to disk
     # store.add_documents(docs)
@@ -206,30 +242,30 @@ def add_ruleindex(df, industry=""):
     embeddings = OpenAIEmbeddings()
 
     # get chroma
-    store = Chroma(
-        persist_directory=fileidxfolder,
-        embedding_function=embeddings,
-        collection_name=collection_name,
-    )
-    # add to chroma
+    # store = Chroma(
+    #     persist_directory=fileidxfolder,
+    #     embedding_function=embeddings,
+    #     collection_name=collection_name,
+    # )
+    # # add to chroma
     store.add_texts(docs, metadatas=metadata)
-    store.persist()
+    # store.persist()
 
 
 # list all indexes using qdrant
-def list_indexes():
-    """
-    Lists all indexes in the LangChain index.
-    """
+# def list_indexes():
+#     """
+#     Lists all indexes in the LangChain index.
+#     """
 
-    # get qdrant client
-    qdrant_client = QdrantClient(host=qdrant_host)
-    # get collection names
-    collection_names = qdrant_client.list_aliases()
-    return collection_names
+#     # get qdrant client
+#     qdrant_client = QdrantClient(host=qdrant_host)
+#     # get collection names
+#     collection_names = qdrant_client.list_aliases()
+#     return collection_names
 
 
-def gpt_answer(question, chaintype="stuff", industry="", top_k=4):
+def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt-3.5-turbo"):
     collection_name = industry_name_to_code(industry)
     # get faiss client
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
@@ -269,7 +305,7 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4):
     prompt = ChatPromptTemplate.from_messages(messages)
 
     chain_type_kwargs = {"prompt": prompt}
-    llm = ChatOpenAI()
+    llm = ChatOpenAI(model_name=model_name,max_tokens=512)
     chain = VectorDBQA.from_chain_type(
         llm,
         chain_type=chaintype,
@@ -299,41 +335,56 @@ def similarity_search(question, topk=4, industry="", items=[]):
 
     # get qdrant client
     # qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
-    # collection_name = "filedocs"
-    # # get qdrant docsearch
+    # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
+   
     # get chroma
     store = Chroma(
         persist_directory=fileidxfolder,
-        embedding_function=OpenAIEmbeddings(),
+        embedding_function=OpenAIEmbeddings().embed_query,
         collection_name=collection_name,
     )
 
-    # get milvus
+    collections = store._client.list_collections()
+    for collection in collections:
+        print(collection.name)
+
+    # openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+    #             api_key=openai_api_key,
+    #             model_name="text-embedding-ada-002"
+    #         )
+    # collection = chroma_client.get_collection(name=collection_name, embedding_function=openai_ef)
+    
+    # # get milvus
     # store = Milvus(
     # embedding_function=OpenAIEmbeddings(),
     # connection_args={"host": "127.0.0.1", "port": "19530"},
+    # # collection_name=collection_name,
+    # # text_field="text",
     # )
-    filter = {"监管要求": {"$eq": "商业银行信息科技风险管理指引"}}
-    # filter={
-    # "$or": [
-    #     {
-    #         "监管要求": "银行业金融机构重要信息系统投产及变更管理办法"
-    #     },
-    #     {
-    #         "监管要求": "商业银行信息科技风险管理指引"
-    #     }
-    # ]
-    # }
-    if items:
-        filter = convert_list_to_dict(items)
-    else:
-        filter = None
 
+    # List all collections
+    # collections = store.list_collections()
+
+    # print(collections)
+
+    filter = {"监管要求": "商业银行信息科技风险管理指引"}
+#     filter ={
+#   "key": "监管要求",
+#   "type": "string",
+#   "match": {
+#     "value": "商业银行信息科技风险管理指引"
+#   }
+# }
+
+    filter = convert_list_to_dict(items)
+
+    # substore=collection.query(["query text"], {"where": flter})
     print(filter)
     # filter=None
-    docs = store.similarity_search(question, k=topk, filter=filter)
+    docs = store.similarity_search(query=question, k=topk, filter=filter)
     df = docs_to_df(docs)
+
     return df
 
 
@@ -375,7 +426,11 @@ def industry_name_to_code(industry_name):
 
 
 def convert_list_to_dict(lst):
-    if len(lst) == 1:
+    if len(lst) > 0:
         return {"监管要求": lst[0]}
     else:
-        return {"$or": [{"监管要求": item} for item in lst]}
+        return None
+        # return {"should": [{"key": "监管要求",
+        # "match": {
+        #   "value": item
+        # }} for item in lst]}
