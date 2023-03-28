@@ -9,10 +9,11 @@ import pandas as pd
 # import pinecone
 import chromadb
 from chromadb.config import Settings
-from chromadb.utils import embedding_functions
+# from chromadb.utils import embedding_functions
 
 # from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 from langchain.chains import VectorDBQA
+from langchain.chains import RetrievalQA
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chat_models import ChatOpenAI
@@ -20,6 +21,7 @@ from langchain.chat_models import ChatOpenAI
 # from langchain.document_loaders import TextLoader
 from langchain.document_loaders import DirectoryLoader
 from langchain.embeddings import OpenAIEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 
 # from langchain.indexes import VectorstoreIndexCreator
 from langchain.llms import OpenAIChat
@@ -35,13 +37,16 @@ from langchain.text_splitter import (
     RecursiveCharacterTextSplitter,
 )
 from langchain.vectorstores import FAISS, Chroma, Milvus, Pinecone, Qdrant,OpenSearchVectorSearch
-# from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient
 # from qdrant_client.http.models import Filter, FieldCondition
 
 # from opensearchpy import OpenSearch
 # import requests
 # from llama_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 
+model_name='shibing624/text2vec-base-chinese'
+# model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
+embeddings =HuggingFaceEmbeddings(model_name=model_name)
 
 # read config from config.json
 with open("config.json", "r") as f:
@@ -142,18 +147,20 @@ def build_ruleindex(df, industry=""):
     #     metadata[i]["regulation"] = metadata[i].pop("监管要求")
     #     metadata[i]["structure"] = metadata[i].pop("结构")
 
-    embeddings = OpenAIEmbeddings()
+    # embeddings = OpenAIEmbeddings()
+    # embeddings =HuggingFaceEmbeddings(model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
+
     # Create vector store from documents and save to disk
     # store = FAISS.from_texts(docs, embeddings,metadatas=metadata)
     # # store = FAISS.from_documents(docs, embeddings)
     # store.save_local(fileidxfolder)
 
     # use chroma
-    store = Chroma(
-        persist_directory=fileidxfolder,
-        embedding_function=embeddings,
-        collection_name=collection_name,
-    )
+    # store = Chroma(
+    #     persist_directory=fileidxfolder,
+    #     embedding_function=embeddings,
+    #     collection_name=collection_name,
+    # )
 
     # collections = store._client.list_collections()
     # for collection in collections:
@@ -162,20 +169,20 @@ def build_ruleindex(df, industry=""):
     # store.delete_collection()
     # store.persist()
 
-    store.from_texts(
-        docs,
-        embeddings,
-        metadatas=metadata,
-        persist_directory=fileidxfolder,
-        collection_name=collection_name,
-    )
-    store.persist()
+    # store=Chroma.from_texts(
+    #     docs,
+    #     embeddings,
+    #     metadatas=metadata,
+    #     persist_directory=fileidxfolder,
+    #     collection_name=collection_name,
+    # )
+    # store.persist()
     # store=None
 
     # use qdrant
     # collection_name = "filedocs"
     # Create vector store from documents and save to qdrant
-    # Qdrant.from_texts(docs, embeddings,metadatas=metadata, host=qdrant_host, prefer_grpc=True, collection_name=collection_name)
+    Qdrant.from_texts(docs, embeddings,metadatas=metadata, host=qdrant_host,  collection_name=collection_name)
 
     # use pinecone
     # Create vector store from documents and save to pinecone
@@ -226,9 +233,9 @@ def add_ruleindex(df, industry=""):
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
-    qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
+    qdrant_client = QdrantClient(host=qdrant_host)
     # # get qdrant docsearch
-    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
+    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
 
     # Create vector store from documents and save to disk
     # store.add_documents(docs)
@@ -239,7 +246,7 @@ def add_ruleindex(df, industry=""):
     # build metadata
     metadata = df[["监管要求", "结构"]].to_dict(orient="records")
 
-    embeddings = OpenAIEmbeddings()
+    # embeddings = OpenAIEmbeddings()
 
     # get chroma
     # store = Chroma(
@@ -247,7 +254,7 @@ def add_ruleindex(df, industry=""):
     #     embedding_function=embeddings,
     #     collection_name=collection_name,
     # )
-    # # add to chroma
+    # add to chroma
     store.add_texts(docs, metadatas=metadata)
     # store.persist()
 
@@ -271,19 +278,18 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
-    # qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
+    qdrant_client = QdrantClient(host=qdrant_host)
 
-    # collection_name = "filedocs"
-    # # get qdrant docsearch
-    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
+    # get qdrant docsearch
+    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
 
-    embeddings = OpenAIEmbeddings()
+    # embeddings = OpenAIEmbeddings()
     # get chroma
-    store = Chroma(
-        persist_directory=fileidxfolder,
-        embedding_function=embeddings,
-        collection_name=collection_name,
-    )
+    # store = Chroma(
+    #     persist_directory=fileidxfolder,
+    #     embedding_function=embeddings,
+    #     collection_name=collection_name,
+    # )
 
     # prefix_messages = [
     #     {
@@ -306,11 +312,13 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
 
     chain_type_kwargs = {"prompt": prompt}
     llm = ChatOpenAI(model_name=model_name,max_tokens=512)
-    chain = VectorDBQA.from_chain_type(
+    # chain = VectorDBQA.from_chain_type(
+    chain = RetrievalQA.from_chain_type(
         llm,
         chain_type=chaintype,
-        vectorstore=store,
-        k=top_k,
+        # vectorstore=store,
+        retriever=store.as_retriever(),
+        # k=top_k,
         return_source_documents=True,
         chain_type_kwargs=chain_type_kwargs,
     )
@@ -322,7 +330,7 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
     # result = qa_chain({"input_documents": docs, "question": question}, return_only_outputs=True)
 
     answer = result["result"]
-
+    # sourcedf=None
     source = result["source_documents"]
     sourcedf = docs_to_df(source)
     return answer, sourcedf
@@ -331,23 +339,23 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
 def similarity_search(question, topk=4, industry="", items=[]):
     collection_name = industry_name_to_code(industry)
     # get faiss client
-    # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
+    # store = FAISS.load_local(fileidxfolder, embeddings)
 
     # get qdrant client
-    # qdrant_client = QdrantClient(host=qdrant_host, prefer_grpc=True)
+    qdrant_client = QdrantClient(host=qdrant_host)
     # get qdrant docsearch
-    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=OpenAIEmbeddings().embed_query)
+    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
    
     # get chroma
-    store = Chroma(
-        persist_directory=fileidxfolder,
-        embedding_function=OpenAIEmbeddings().embed_query,
-        collection_name=collection_name,
-    )
+    # store = Chroma(
+    #     persist_directory=fileidxfolder,
+    #     embedding_function=embeddings,
+    #     collection_name=collection_name,
+    # )
 
-    collections = store._client.list_collections()
-    for collection in collections:
-        print(collection.name)
+    # collections = store._client.list_collections()
+    # for collection in collections:
+    #     print(collection.name)
 
     # openai_ef = embedding_functions.OpenAIEmbeddingFunction(
     #             api_key=openai_api_key,
@@ -382,9 +390,9 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # substore=collection.query(["query text"], {"where": flter})
     print(filter)
     # filter=None
-    docs = store.similarity_search(query=question, k=topk, filter=filter)
+    docs = store.similarity_search(query=question, k=topk,filter=filter)
     df = docs_to_df(docs)
-
+    # df=None
     return df
 
 
@@ -426,7 +434,7 @@ def industry_name_to_code(industry_name):
 
 
 def convert_list_to_dict(lst):
-    if len(lst) > 0:
+    if len(lst) == 1:
         return {"监管要求": lst[0]}
     else:
         return None
