@@ -6,7 +6,7 @@ from pathlib import Path
 
 import faiss
 import pandas as pd
-# import pinecone
+import pinecone
 import chromadb
 from chromadb.config import Settings
 # from chromadb.utils import embedding_functions
@@ -44,10 +44,6 @@ from qdrant_client import QdrantClient
 # import requests
 # from llama_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 
-model_name='shibing624/text2vec-base-chinese'
-# model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
-embeddings =HuggingFaceEmbeddings(model_name=model_name)
-
 # read config from config.json
 with open("config.json", "r") as f:
     config = json.load(f)
@@ -55,8 +51,8 @@ with open("config.json", "r") as f:
 # get openai api key from config.json
 api_key = config["openai_api_key"]
 
-# PINECONE_API_KEY = ''
-# PINECONE_API_ENV = 'us-west1-gcp'
+PINECONE_API_KEY = '515f071e-32d7-4819-8ca5-552c98718605'
+PINECONE_API_ENV = 'us-west1-gcp'
 
 qdrant_host = "127.0.0.1"
 # qdrant_api_key = ""
@@ -80,6 +76,12 @@ port = 9200
 auth = ('admin', 'admin') # For testing only. Don't store credentials in code.
 # ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
 
+# model_name='shibing624/text2vec-base-chinese'
+# model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
+# embeddings =HuggingFaceEmbeddings(model_name=model_name)
+embeddings = OpenAIEmbeddings()
+
+
 # Create the client with SSL/TLS enabled, but hostname verification disabled.
 # client = OpenSearch(
 #     hosts = [{'host': host, 'port': port}],
@@ -94,10 +96,10 @@ auth = ('admin', 'admin') # For testing only. Don't store credentials in code.
 
 
 # initialize pinecone
-# pinecone.init(
-#     api_key=PINECONE_API_KEY,
-#     environment=PINECONE_API_ENV
-# )
+pinecone.init(
+    api_key=PINECONE_API_KEY,
+    environment=PINECONE_API_ENV
+)
 
 # gpt_model="text-davinci-003"
 # gpt_model='gpt-3.5-turbo'
@@ -186,9 +188,8 @@ def build_ruleindex(df, industry=""):
 
     # use pinecone
     # Create vector store from documents and save to pinecone
-    # index_name = "langchain1"
-    # docsearch = Pinecone.from_documents(docs, embeddings, index_name=index_name)
-    # return docsearch
+    index_name = "ruledb"
+    Pinecone.from_texts(docs, embeddings,metadatas=metadata,namespace=collection_name, index_name=index_name)
 
     # use milvus
     # vector_db = Milvus.from_texts(
@@ -233,20 +234,22 @@ def add_ruleindex(df, industry=""):
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
-    qdrant_client = QdrantClient(host=qdrant_host)
-    # # get qdrant docsearch
-    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
+    # qdrant_client = QdrantClient(host=qdrant_host)
+    # # # get qdrant docsearch
+    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
 
     # Create vector store from documents and save to disk
     # store.add_documents(docs)
     # store.save_local(fileidxfolder)
 
+    # get pinecone
+    index=pinecone.Index("ruledb")
+    store = Pinecone(index, embeddings.embed_query,text_key="text",namespace=collection_name)
+
     # get text list from df
     docs = df["条款"].tolist()
     # build metadata
     metadata = df[["监管要求", "结构"]].to_dict(orient="records")
-
-    # embeddings = OpenAIEmbeddings()
 
     # get chroma
     # store = Chroma(
@@ -342,10 +345,13 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # store = FAISS.load_local(fileidxfolder, embeddings)
 
     # get qdrant client
-    qdrant_client = QdrantClient(host=qdrant_host)
-    # get qdrant docsearch
-    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
-   
+    # qdrant_client = QdrantClient(host=qdrant_host)
+    # # get qdrant docsearch
+    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
+ 
+    # get pinecone
+    index=pinecone.Index("ruledb")
+    store = Pinecone(index, embeddings.embed_query,text_key="text",namespace=collection_name)
     # get chroma
     # store = Chroma(
     #     persist_directory=fileidxfolder,
@@ -356,12 +362,6 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # collections = store._client.list_collections()
     # for collection in collections:
     #     print(collection.name)
-
-    # openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-    #             api_key=openai_api_key,
-    #             model_name="text-embedding-ada-002"
-    #         )
-    # collection = chroma_client.get_collection(name=collection_name, embedding_function=openai_ef)
     
     # # get milvus
     # store = Milvus(
@@ -437,8 +437,4 @@ def convert_list_to_dict(lst):
     if len(lst) == 1:
         return {"监管要求": lst[0]}
     else:
-        return None
-        # return {"should": [{"key": "监管要求",
-        # "match": {
-        #   "value": item
-        # }} for item in lst]}
+        return {"监管要求": {"$in":[item for item in lst]}}
