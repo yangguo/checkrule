@@ -208,8 +208,8 @@ def main():
 
                     # reset index
                     # resultdf.reset_index(drop=True, inplace=True)
-                    # placeholder.table(resultdf)
-                    st.write(resultdf)
+                    placeholder.table(resultdf)
+                    # st.write(resultdf)
                     # search is done
                     # st.sidebar.success('搜索完成')
                     st.sidebar.success("共搜索到" + str(resultdf.shape[0]) + "条结果")
