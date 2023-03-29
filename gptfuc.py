@@ -281,10 +281,10 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
     # get qdrant client
-    qdrant_client = QdrantClient(host=qdrant_host)
+    # qdrant_client = QdrantClient(host=qdrant_host)
 
-    # get qdrant docsearch
-    store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
+    # # get qdrant docsearch
+    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
 
     # embeddings = OpenAIEmbeddings()
     # get chroma
@@ -293,6 +293,11 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
     #     embedding_function=embeddings,
     #     collection_name=collection_name,
     # )
+
+    # get pinecone
+        # get pinecone
+    index=pinecone.Index("ruledb")
+    store = Pinecone(index, embeddings.embed_query,text_key="text",namespace=collection_name)
 
     # prefix_messages = [
     #     {
