@@ -330,7 +330,7 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
         return_source_documents=True,
         chain_type_kwargs=chain_type_kwargs,
     )
-    result = chain({"query": question})
+    result = chain({"query": question,"k":top_k})
 
     # docs = store.similarity_search(question)
     # qa_chain=load_qa_with_sources_chain(llm,chain_type=chaintype)
@@ -399,6 +399,24 @@ def similarity_search(question, topk=4, industry="", items=[]):
     df = docs_to_df(docs)
     # df=None
     return df
+
+
+def list_db(industry="", items=[]):
+    collection_name = industry_name_to_code(industry)
+
+    filter = convert_list_to_dict(items)
+    print(filter)
+    # get pinecone
+    index=pinecone.Index("ruledb")
+    # query_db = index.query(
+    # ids=None,
+    # top_k=10,
+    # filter=filter,
+    # namespace=collection_name
+    # )
+    index_stats = pinecone.list_indexes()
+    return index_stats
+    # return query_db    
 
 
 # convert document list to pandas dataframe

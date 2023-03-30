@@ -12,7 +12,7 @@ from checkrule import (  # searchrule,
 )
 
 # from plc2audit import predict
-from gptfuc import add_ruleindex, build_ruleindex, gpt_answer, similarity_search
+from gptfuc import add_ruleindex, build_ruleindex, gpt_answer, similarity_search,list_db
 from utils import (  # keybert_keywords get_most_similar,
     combine_df_columns,
     get_folder_list,
@@ -88,7 +88,7 @@ def main():
         else:
             column_text = "|".join(column_text)
 
-        match = st.sidebar.radio("搜索方式", ("关键字搜索", "模糊搜索", "智能问答", "生成模型"))
+        match = st.sidebar.radio("搜索方式", ("关键字搜索", "模糊搜索", "智能问答", "生成模型", "模型管理"))
         # initialize session value search_result
         if "search_result" not in st.session_state:
             st.session_state["search_result"] = None
@@ -279,6 +279,13 @@ def main():
                     st.markdown("### 来源：")
                     st.table(source)
 
+        elif match == "模型管理":
+            st.subheader("模型管理")
+
+            coldb = list_db(
+                         industry_choice, make_choice
+                    )
+            st.write(coldb)
         # st.sidebar.subheader("搜索范围")
         # st.sidebar.write(make_choice)
         # save the search result
