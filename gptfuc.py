@@ -401,22 +401,16 @@ def similarity_search(question, topk=4, industry="", items=[]):
     return df
 
 
-def list_db(industry="", items=[]):
+def delete_db(industry="", items=[]):
     collection_name = industry_name_to_code(industry)
 
     filter = convert_list_to_dict(items)
-    print(filter)
     # get pinecone
     index=pinecone.Index("ruledb")
-    # query_db = index.query(
-    # ids=None,
-    # top_k=10,
-    # filter=filter,
-    # namespace=collection_name
-    # )
-    index_stats = pinecone.list_indexes()
-    return index_stats
-    # return query_db    
+    index.delete(
+    filter=filter,
+    namespace=collection_name
+    )
 
 
 # convert document list to pandas dataframe

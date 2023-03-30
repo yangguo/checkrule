@@ -12,7 +12,7 @@ from checkrule import (  # searchrule,
 )
 
 # from plc2audit import predict
-from gptfuc import add_ruleindex, build_ruleindex, gpt_answer, similarity_search,list_db
+from gptfuc import add_ruleindex, build_ruleindex, gpt_answer, similarity_search,delete_db
 from utils import (  # keybert_keywords get_most_similar,
     combine_df_columns,
     get_folder_list,
@@ -282,10 +282,17 @@ def main():
         elif match == "模型管理":
             st.subheader("模型管理")
 
-            coldb = list_db(
-                         industry_choice, make_choice
-                    )
-            st.write(coldb)
+            # delete model button
+            delete_model = st.button("删除模型")
+            if delete_model:
+                with st.spinner("正在删除模型..."):
+                    try:
+                        delete_db(industry_choice,make_choice)
+                        st.success("模型删除成功")
+                    except Exception as e:
+                        st.error(e)
+                        st.error("模型删除失败")
+
         # st.sidebar.subheader("搜索范围")
         # st.sidebar.write(make_choice)
         # save the search result
