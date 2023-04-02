@@ -4,24 +4,21 @@ import os
 import pickle
 from pathlib import Path
 
+import chromadb
 import faiss
 import pandas as pd
 import pinecone
-import chromadb
 from chromadb.config import Settings
-# from chromadb.utils import embedding_functions
 
 # from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
-from langchain.chains import VectorDBQA
-from langchain.chains import RetrievalQA
+from langchain.chains import RetrievalQA, VectorDBQA
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chat_models import ChatOpenAI
 
 # from langchain.document_loaders import TextLoader
 from langchain.document_loaders import DirectoryLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
 
 # from langchain.indexes import VectorstoreIndexCreator
 from langchain.llms import OpenAIChat
@@ -36,8 +33,19 @@ from langchain.text_splitter import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
 )
-from langchain.vectorstores import FAISS, Chroma, Milvus, Pinecone, Qdrant,OpenSearchVectorSearch
+from langchain.vectorstores import (
+    FAISS,
+    Chroma,
+    Milvus,
+    OpenSearchVectorSearch,
+    Pinecone,
+    Qdrant,
+)
 from qdrant_client import QdrantClient
+
+# from chromadb.utils import embedding_functions
+
+
 # from qdrant_client.http.models import Filter, FieldCondition
 
 # from opensearchpy import OpenSearch
@@ -51,8 +59,8 @@ with open("config.json", "r") as f:
 # get openai api key from config.json
 api_key = config["openai_api_key"]
 
-PINECONE_API_KEY = '515f071e-32d7-4819-8ca5-552c98718605'
-PINECONE_API_ENV = 'us-west1-gcp'
+PINECONE_API_KEY = "515f071e-32d7-4819-8ca5-552c98718605"
+PINECONE_API_ENV = "us-west1-gcp"
 
 qdrant_host = "127.0.0.1"
 # qdrant_api_key = ""
@@ -71,9 +79,9 @@ if openai_api_key is None:
 else:
     print("已设置OPENAI_API_KEY" + openai_api_key)
 
-host = 'localhost'
+host = "localhost"
 port = 9200
-auth = ('admin', 'admin') # For testing only. Don't store credentials in code.
+auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
 # ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
 
 # model_name='shibing624/text2vec-base-chinese'
@@ -96,10 +104,7 @@ embeddings = OpenAIEmbeddings()
 
 
 # initialize pinecone
-pinecone.init(
-    api_key=PINECONE_API_KEY,
-    environment=PINECONE_API_ENV
-)
+pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_API_ENV)
 
 # gpt_model="text-davinci-003"
 # gpt_model='gpt-3.5-turbo'
@@ -184,12 +189,24 @@ def build_ruleindex(df, industry=""):
     # use qdrant
     # collection_name = "filedocs"
     # Create vector store from documents and save to qdrant
-    Qdrant.from_texts(docs, embeddings,metadatas=metadata, host=qdrant_host,  collection_name=collection_name)
+    Qdrant.from_texts(
+        docs,
+        embeddings,
+        metadatas=metadata,
+        host=qdrant_host,
+        collection_name=collection_name,
+    )
 
     # use pinecone
     # Create vector store from documents and save to pinecone
     index_name = "ruledb"
-    Pinecone.from_texts(docs, embeddings,metadatas=metadata,namespace=collection_name, index_name=index_name)
+    Pinecone.from_texts(
+        docs,
+        embeddings,
+        metadatas=metadata,
+        namespace=collection_name,
+        index_name=index_name,
+    )
 
     # use milvus
     # vector_db = Milvus.from_texts(
@@ -203,6 +220,7 @@ def build_ruleindex(df, industry=""):
 
     # use opensearch
     # docsearch = OpenSearchVectorSearch.from_texts(docs, embeddings, opensearch_url="http://localhost:9200")
+
 
 # def split_text(text, chunk_chars=4000, overlap=50):
 #     """
@@ -243,8 +261,10 @@ def add_ruleindex(df, industry=""):
     # store.save_local(fileidxfolder)
 
     # get pinecone
-    index=pinecone.Index("ruledb")
-    store = Pinecone(index, embeddings.embed_query,text_key="text",namespace=collection_name)
+    index = pinecone.Index("ruledb")
+    store = Pinecone(
+        index, embeddings.embed_query, text_key="text", namespace=collection_name
+    )
 
     # get text list from df
     docs = df["条款"].tolist()
@@ -275,7 +295,9 @@ def add_ruleindex(df, industry=""):
 #     return collection_names
 
 
-def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt-3.5-turbo"):
+def gpt_answer(
+    question, chaintype="stuff", industry="", top_k=4, model_name="gpt-3.5-turbo"
+):
     collection_name = industry_name_to_code(industry)
     # get faiss client
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
@@ -295,9 +317,10 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
     # )
 
     # get pinecone
-        # get pinecone
-    index=pinecone.Index("ruledb")
-    store = Pinecone(index, embeddings.embed_query,text_key="text",namespace=collection_name)
+    index = pinecone.Index("ruledb")
+    store = Pinecone(
+        index, embeddings.embed_query, text_key="text", namespace=collection_name
+    )
 
     # prefix_messages = [
     #     {
@@ -319,7 +342,7 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
     prompt = ChatPromptTemplate.from_messages(messages)
 
     chain_type_kwargs = {"prompt": prompt}
-    llm = ChatOpenAI(model_name=model_name,max_tokens=512)
+    llm = ChatOpenAI(model_name=model_name, max_tokens=512)
     # chain = VectorDBQA.from_chain_type(
     chain = RetrievalQA.from_chain_type(
         llm,
@@ -330,7 +353,7 @@ def gpt_answer(question, chaintype="stuff", industry="", top_k=4,model_name="gpt
         return_source_documents=True,
         chain_type_kwargs=chain_type_kwargs,
     )
-    result = chain({"query": question,"k":top_k})
+    result = chain({"query": question, "top_k_docs_for_context": top_k})
 
     # docs = store.similarity_search(question)
     # qa_chain=load_qa_with_sources_chain(llm,chain_type=chaintype)
@@ -353,10 +376,12 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # qdrant_client = QdrantClient(host=qdrant_host)
     # # get qdrant docsearch
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
- 
+
     # get pinecone
-    index=pinecone.Index("ruledb")
-    store = Pinecone(index, embeddings.embed_query,text_key="text",namespace=collection_name)
+    index = pinecone.Index("ruledb")
+    store = Pinecone(
+        index, embeddings.embed_query, text_key="text", namespace=collection_name
+    )
     # get chroma
     # store = Chroma(
     #     persist_directory=fileidxfolder,
@@ -367,7 +392,7 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # collections = store._client.list_collections()
     # for collection in collections:
     #     print(collection.name)
-    
+
     # # get milvus
     # store = Milvus(
     # embedding_function=OpenAIEmbeddings(),
@@ -382,20 +407,20 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # print(collections)
 
     filter = {"监管要求": "商业银行信息科技风险管理指引"}
-#     filter ={
-#   "key": "监管要求",
-#   "type": "string",
-#   "match": {
-#     "value": "商业银行信息科技风险管理指引"
-#   }
-# }
+    #     filter ={
+    #   "key": "监管要求",
+    #   "type": "string",
+    #   "match": {
+    #     "value": "商业银行信息科技风险管理指引"
+    #   }
+    # }
 
     filter = convert_list_to_dict(items)
 
     # substore=collection.query(["query text"], {"where": flter})
     print(filter)
     # filter=None
-    docs = store.similarity_search(query=question, k=topk,filter=filter)
+    docs = store.similarity_search(query=question, k=topk, filter=filter)
     df = docs_to_df(docs)
     # df=None
     return df
@@ -406,11 +431,8 @@ def delete_db(industry="", items=[]):
 
     filter = convert_list_to_dict(items)
     # get pinecone
-    index=pinecone.Index("ruledb")
-    index.delete(
-    filter=filter,
-    namespace=collection_name
-    )
+    index = pinecone.Index("ruledb")
+    index.delete(filter=filter, namespace=collection_name)
 
 
 # convert document list to pandas dataframe
@@ -454,4 +476,4 @@ def convert_list_to_dict(lst):
     if len(lst) == 1:
         return {"监管要求": lst[0]}
     else:
-        return {"监管要求": {"$in":[item for item in lst]}}
+        return {"监管要求": {"$in": [item for item in lst]}}

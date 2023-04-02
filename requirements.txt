@@ -112,3 +112,4 @@ kaleido
 streamlit-echarts
 keybert
 chromadb
+pinecone-client
