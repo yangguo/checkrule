@@ -44,21 +44,21 @@ filerawfolder = "fileraw"
 fileidxfolder = "ruleidx"
 backendurl = "http://localhost:8000"
 
-openai_api_key = os.environ.get("OPENAI_API_KEY")
-if openai_api_key is None:
-    print("请设置OPENAI_API_KEY")
-else:
-    print("已设置OPENAI_API_KEY" + openai_api_key)
+# openai_api_key = os.environ.get("OPENAI_API_KEY")
+# if openai_api_key is None:
+#     print("请设置OPENAI_API_KEY")
+# else:
+#     print("已设置OPENAI_API_KEY" + openai_api_key)
 
 host = "localhost"
 port = 9200
 auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
 # ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
 
-# model_name='shibing624/text2vec-base-chinese'
+model_name='shibing624/text2vec-base-chinese'
 # model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
-# embeddings =HuggingFaceEmbeddings(model_name=model_name)
-embeddings = OpenAIEmbeddings()
+embeddings =HuggingFaceEmbeddings(model_name=model_name)
+# embeddings = OpenAIEmbeddings()
 
 
 # initialize pinecone
