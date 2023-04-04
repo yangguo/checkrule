@@ -84,10 +84,10 @@ port = 9200
 auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
 # ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
 
-# model_name='shibing624/text2vec-base-chinese'
+model_name='shibing624/text2vec-base-chinese'
 # model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
-# embeddings =HuggingFaceEmbeddings(model_name=model_name)
-embeddings = OpenAIEmbeddings()
+embeddings =HuggingFaceEmbeddings(model_name=model_name)
+# embeddings = OpenAIEmbeddings()
 
 
 # Create the client with SSL/TLS enabled, but hostname verification disabled.
@@ -189,13 +189,13 @@ def build_ruleindex(df, industry=""):
     # use qdrant
     # collection_name = "filedocs"
     # Create vector store from documents and save to qdrant
-    Qdrant.from_texts(
-        docs,
-        embeddings,
-        metadatas=metadata,
-        host=qdrant_host,
-        collection_name=collection_name,
-    )
+    # Qdrant.from_texts(
+    #     docs,
+    #     embeddings,
+    #     metadatas=metadata,
+    #     host=qdrant_host,
+    #     collection_name=collection_name,
+    # )
 
     # use pinecone
     # Create vector store from documents and save to pinecone
