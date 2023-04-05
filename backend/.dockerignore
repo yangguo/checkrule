@@ -1,0 +1,15 @@
+# Ignore specific files
+Dockerfile
+README.md
+
+# Ignore specific directories
+__pycache__/
+
+# Ignore files with specific extensions
+*.log
+*.tmp
+
+# Ignore all files except specific ones (whitelist approach)
+# *
+# !app.py
+# !requirements.txt
