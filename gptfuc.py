@@ -1,14 +1,11 @@
 # from langchain.llms import OpenAI
 import json
 import os
-import pickle
-from pathlib import Path
 
-import chromadb
-import faiss
+# import chromadb
+# import faiss
 import pandas as pd
 import pinecone
-from chromadb.config import Settings
 
 # from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 from langchain.chains import RetrievalQA, VectorDBQA
@@ -18,7 +15,11 @@ from langchain.chat_models import ChatOpenAI
 
 # from langchain.document_loaders import TextLoader
 from langchain.document_loaders import DirectoryLoader
-from langchain.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
+from langchain.embeddings import (
+    HuggingFaceEmbeddings,
+    HuggingFaceHubEmbeddings,
+    OpenAIEmbeddings,
+)
 
 # from langchain.indexes import VectorstoreIndexCreator
 from langchain.llms import OpenAIChat
@@ -41,7 +42,26 @@ from langchain.vectorstores import (
     Pinecone,
     Qdrant,
 )
-from qdrant_client import QdrantClient
+
+# from chromadb.config import Settings
+
+
+# import pickle
+# from pathlib import Path
+
+
+# from qdrant_client import QdrantClient
+
+# model_name='shibing624/text2vec-base-chinese'
+model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+# embeddings =HuggingFaceEmbeddings(model_name=model_name)
+# embeddings = OpenAIEmbeddings()
+
+embeddings = HuggingFaceHubEmbeddings(
+    repo_id=model_name,
+    task="feature-extraction",
+    huggingfacehub_api_token="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",
+)
 
 # from chromadb.utils import embedding_functions
 
@@ -83,11 +103,6 @@ host = "localhost"
 port = 9200
 auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
 # ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
-
-model_name='shibing624/text2vec-base-chinese'
-# model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
-embeddings =HuggingFaceEmbeddings(model_name=model_name)
-# embeddings = OpenAIEmbeddings()
 
 
 # Create the client with SSL/TLS enabled, but hostname verification disabled.

@@ -3,11 +3,13 @@ import os
 
 import pandas as pd
 import pinecone
-
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
-
-from langchain.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
+from langchain.embeddings import (
+    HuggingFaceEmbeddings,
+    HuggingFaceHubEmbeddings,
+    OpenAIEmbeddings,
+)
 
 # from langchain.indexes import VectorstoreIndexCreator
 from langchain.llms import OpenAIChat
@@ -26,6 +28,16 @@ from langchain.vectorstores import (
     Qdrant,
 )
 
+# model_name='shibing624/text2vec-base-chinese'
+model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+# embeddings =HuggingFaceEmbeddings(model_name=model_name)
+# embeddings = OpenAIEmbeddings()
+
+embeddings = HuggingFaceHubEmbeddings(
+    repo_id=model_name,
+    task="feature-extraction",
+    huggingfacehub_api_token="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",
+)
 # read config from config.json
 with open("config.json", "r") as f:
     config = json.load(f)
@@ -55,9 +67,9 @@ port = 9200
 auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
 # ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
 
-model_name='shibing624/text2vec-base-chinese'
+# model_name='shibing624/text2vec-base-chinese'
 # model_name='sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
-embeddings =HuggingFaceEmbeddings(model_name=model_name)
+# embeddings =HuggingFaceEmbeddings(model_name=model_name)
 # embeddings = OpenAIEmbeddings()
 
 
@@ -188,7 +200,7 @@ def similarity_search(question, topk=4, industry="", items=[]):
     filter = convert_list_to_dict(items)
 
     # substore=collection.query(["query text"], {"where": flter})
-    print(filter)
+    # print(filter)
     # filter=None
     docs = store.similarity_search(query=question, k=topk, filter=filter)
     df = docs_to_df(docs)
@@ -234,7 +246,7 @@ def industry_name_to_code(industry_name):
 
 
 def convert_list_to_dict(lst):
-    if len(lst)==0:
+    if len(lst) == 0:
         return None
     elif len(lst) == 1:
         return {"监管要求": lst[0]}
