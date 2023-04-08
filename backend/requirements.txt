@@ -42,5 +42,4 @@ uvicorn==0.21.1
 yarl==1.8.2
 # sentence-transformers==2.2.2
 # flask==2.2.3
-transformers 
-torch 
+huggingface_hub==0.13.3
