@@ -1,22 +1,31 @@
-import scipy
-from utils import split_words, get_csvdf, get_rulefolder, get_embedding,df2aggrid#roformer_encoder
+# import scipy
 import ast
-from streamlit_echarts import st_echarts
-import streamlit as st
-import pandas as pd
 
-rulefolder = 'rules'
-secpath='rules/sec1.csv'
-plcpath='rules/lawdfall0507.csv'
-metapath='rules/lawmeta0517.csv'
-dtlpath='rules/lawdtl0517.csv'
-orgpath='rules/org1.csv'
+import pandas as pd
+import streamlit as st
+from streamlit_echarts import st_echarts
+
+from utils import (  # roformer_encoder
+    df2aggrid,
+    get_csvdf,
+    get_embedding,
+    get_rulefolder,
+    split_words,
+)
+
+rulefolder = "rules"
+secpath = "rules/sec1.csv"
+plcpath = "rules/lawdfall0507.csv"
+metapath = "rules/lawmeta0517.csv"
+dtlpath = "rules/lawdtl0517.csv"
+orgpath = "rules/org1.csv"
+
 
 def get_samplerule(key_list, industry_choice):
     rulefolder = get_rulefolder(industry_choice)
     plcdf = get_csvdf(rulefolder)
-    selectdf = plcdf[plcdf['监管要求'].isin(key_list)]
-    tb_sample = selectdf[['监管要求', '结构', '条款']]
+    selectdf = plcdf[plcdf["监管要求"].isin(key_list)]
+    tb_sample = selectdf[["监管要求", "结构", "条款"]]
     return tb_sample.reset_index(drop=True)
 
 
@@ -59,7 +68,7 @@ def get_samplerule(key_list, industry_choice):
 def searchByName(search_text, industry_choice):
     rulefolder = get_rulefolder(industry_choice)
     plcdf = get_csvdf(rulefolder)
-    plc_list = plcdf['监管要求'].drop_duplicates().tolist()
+    plc_list = plcdf["监管要求"].drop_duplicates().tolist()
 
     choicels = []
     for plc in plc_list:
@@ -76,158 +85,170 @@ def searchByItem(searchresult, make_choice, column_text, item_text):
     # split words item_text
     item_text_list = split_words(item_text)
     column_text = fix_section_text(column_text)
-    plcsam = searchresult[(searchresult['监管要求'].isin(make_choice))
-                          & (searchresult['结构'].str.contains(column_text)) &
-                          (searchresult['条款'].str.contains(item_text_list))]
+    plcsam = searchresult[
+        (searchresult["监管要求"].isin(make_choice))
+        & (searchresult["结构"].str.contains(column_text))
+        & (searchresult["条款"].str.contains(item_text_list))
+    ]
     total = len(plcsam)
     return plcsam, total
 
 
 # fix section text with +
 def fix_section_text(section_text):
-    if '+' in section_text:
-        section_text = section_text.replace('+', '\\+')
+    if "+" in section_text:
+        section_text = section_text.replace("+", "\\+")
     return section_text
 
 
 def df2echart(df):
     data = dict()
-    data['name'] = '法规分类'
-    df['children']=df['children'].str.replace('id','value')
+    data["name"] = "法规分类"
+    df["children"] = df["children"].str.replace("id", "value")
     # fillna(0)是为了防止出现nan
-    df['children'] = df['children'].fillna('[]')
+    df["children"] = df["children"].fillna("[]")
     # literal_eval 将字符串转换为字典 ignore 忽略掉异常
-    df['children'] = df['children'].apply(ast.literal_eval)
-    data['children'] = df.iloc[:3]['children'].tolist()
+    df["children"] = df["children"].apply(ast.literal_eval)
+    data["children"] = df.iloc[:3]["children"].tolist()
     # st.write(data)
     option = {
-        "tooltip": {
-            "trigger": "item",
-            "triggerOn": "mousemove"
-        },
-        "series": [{
-            "type": "tree",
-            "data": [data],
-            # "top": "1%",
-            # "left": "7%",
-            # "bottom": "1%",
-            # "right": "20%",
-            # "symbolSize": 7,
-            "label": {
-                "position": "left",
-                "verticalAlign": "middle",
-                "align": "right",
-                # "fontSize": 9,
-            },
-            "leaves": {
+        "tooltip": {"trigger": "item", "triggerOn": "mousemove"},
+        "series": [
+            {
+                "type": "tree",
+                "data": [data],
+                # "top": "1%",
+                # "left": "7%",
+                # "bottom": "1%",
+                # "right": "20%",
+                # "symbolSize": 7,
                 "label": {
-                    "position": "right",
+                    "position": "left",
                     "verticalAlign": "middle",
-                    # "align": "left",
-                }
-            },
-            # "emphasis": {
-            #     "focus": "descendant"
-            # },
-            # "expandAndCollapse": True,
-            # "animationDuration": 550,
-            # "animationDurationUpdate": 750,
-        }],
+                    "align": "right",
+                    # "fontSize": 9,
+                },
+                "leaves": {
+                    "label": {
+                        "position": "right",
+                        "verticalAlign": "middle",
+                        # "align": "left",
+                    }
+                },
+                # "emphasis": {
+                #     "focus": "descendant"
+                # },
+                # "expandAndCollapse": True,
+                # "animationDuration": 550,
+                # "animationDurationUpdate": 750,
+            }
+        ],
     }
     events = {
-    "click": "function(params) { console.log(params.name); return [params.name,params.value]  }",
-    # "dblclick":"function(params) { return [params.type, params.name, params.value] }"
+        "click": "function(params) { console.log(params.name); return [params.name,params.value]  }",
+        # "dblclick":"function(params) { return [params.type, params.name, params.value] }"
     }
 
-    value =st_echarts(option, height="500px",events=events)
+    value = st_echarts(option, height="500px", events=events)
     return value
 
 
-def get_children(df,ids):
-    child=df[df['pId']==ids]
-    idls=child['id'].tolist()
+def get_children(df, ids):
+    child = df[df["pId"] == ids]
+    idls = child["id"].tolist()
     return idls
 
 
-def get_allchildren(df,ids):
-    result=[]
-    brother=get_children(df,ids)
+def get_allchildren(df, ids):
+    result = []
+    brother = get_children(df, ids)
     for bro in brother:
-        little=get_children(df,bro)
-        if little ==[]:
-            result+=[bro]
+        little = get_children(df, bro)
+        if little == []:
+            result += [bro]
         else:
-            result+=little
-    if result==[]:
-        result=[ids]
+            result += little
+    if result == []:
+        result = [ids]
     return result
 
 
 # get org list
 @st.cache(allow_output_mutation=True)
 def get_orglist():
-    plcdf=pd.read_csv(orgpath)
-    cols=['id','pId','name']
-    plcdf=plcdf[cols]
-    plcdf=plcdf.reset_index(drop=True)
+    plcdf = pd.read_csv(orgpath)
+    cols = ["id", "pId", "name"]
+    plcdf = plcdf[cols]
+    plcdf = plcdf.reset_index(drop=True)
     return plcdf
 
 
 # get plcdf
 @st.cache(allow_output_mutation=True)
 def get_plcdf():
-    plcdf=pd.read_csv(plcpath)
-    cols=['secFutrsLawName', 'fileno','lawPubOrgName','secFutrsLawVersion','secFutrsLawId','id']
-    plcdf=plcdf[cols]
+    plcdf = pd.read_csv(plcpath)
+    cols = [
+        "secFutrsLawName",
+        "fileno",
+        "lawPubOrgName",
+        "secFutrsLawVersion",
+        "secFutrsLawId",
+        "id",
+    ]
+    plcdf = plcdf[cols]
     # replace lawAthrtyStsCde mapping to chinese
     # plcdf['lawAthrtyStsCde']=plcdf['lawAthrtyStsCde'].astype(str).replace({'1':'现行有效','2':'已被修改','3':'已被废止'})
     # change column name
-    plcdf.columns=['文件名称','文号','发文单位','发文日期','lawid','id']
+    plcdf.columns = ["文件名称", "文号", "发文单位", "发文日期", "lawid", "id"]
     # convert column with format yyyymmdd to datetime
-    plcdf['发文日期']=pd.to_datetime(plcdf['发文日期'],format='%Y%m%d',errors='coerce').dt.date
-    plcdf=plcdf.reset_index(drop=True)
+    plcdf["发文日期"] = pd.to_datetime(
+        plcdf["发文日期"], format="%Y%m%d", errors="coerce"
+    ).dt.date
+    plcdf = plcdf.reset_index(drop=True)
     return plcdf
 
 
 # get rule list by id
 def get_rulelist(idls):
-    plcdf=get_plcdf()
-    plclsdf=plcdf[plcdf['id'].isin(idls)]
+    plcdf = get_plcdf()
+    plclsdf = plcdf[plcdf["id"].isin(idls)]
     # reset index
-    plclsdf=plclsdf.reset_index(drop=True)
+    plclsdf = plclsdf.reset_index(drop=True)
     return plclsdf
 
 
 # get rule list by name,fileno,org,startdate,enddate
-def get_rulelist_byname(name,fileno,org,startdate,enddate):
-    plcdf=get_plcdf()
+def get_rulelist_byname(name, fileno, org, startdate, enddate):
+    plcdf = get_plcdf()
     # convert org list to str
-    orgstr='|'.join(org)
+    orgstr = "|".join(org)
     # name split words
-    name_list=split_words(name)
+    name_list = split_words(name)
     # fileno split words
-    fileno_list=split_words(fileno)
+    fileno_list = split_words(fileno)
     # search
-    searchresult=plcdf[(plcdf['文件名称'].str.contains(name_list)) &
-                          (plcdf['文号'].str.contains(fileno_list)) &
-                            (plcdf['发文单位'].str.contains(orgstr)) &
-                            (plcdf['发文日期']>=startdate) &
-                            (plcdf['发文日期']<=enddate)]
+    searchresult = plcdf[
+        (plcdf["文件名称"].str.contains(name_list))
+        & (plcdf["文号"].str.contains(fileno_list))
+        & (plcdf["发文单位"].str.contains(orgstr))
+        & (plcdf["发文日期"] >= startdate)
+        & (plcdf["发文日期"] <= enddate)
+    ]
     # reset index
-    searchresult=searchresult.reset_index(drop=True)
+    searchresult = searchresult.reset_index(drop=True)
     # sort by date
-    searchresult=searchresult.sort_values(by='发文日期',ascending=False)
+    searchresult = searchresult.sort_values(by="发文日期", ascending=False)
     return searchresult
 
 
 def get_ruletree():
     secdf = pd.read_csv(secpath)
-    selected=df2echart(secdf)
+    selected = df2echart(secdf)
     # selected is None
     if selected is None:
-        st.error('请选择一个法规分类')
+        st.error("请选择一个法规分类")
         return
-    
+
     if selected is not None:
         [name, ids] = selected
         idls = get_allchildren(secdf, ids)
@@ -236,9 +257,9 @@ def get_ruletree():
         # get total
         total = len(plclsdf)
         # display name,ids and total
-        st.info('{} id: {} 总数: {}'.format(name, ids, total))
+        st.info("{} id: {} 总数: {}".format(name, ids, total))
         # st.table(plclsdf)
-        # fillna 
+        # fillna
         # plclsdf=plclsdf.fillna('')
         # display lawdetail
         display_lawdetail(plclsdf)
@@ -246,51 +267,59 @@ def get_ruletree():
 
 def get_lawdtlbyid(ids):
     metadf = pd.read_csv(metapath)
-    metadf = metadf[metadf['secFutrsLawId'].isin(ids)]
-    metacols=['secFutrsLawName', 'secFutrsLawNameAnno', 'wtAnttnSecFutrsLawName',
-       'secFutrsLawVersion', 'fileno', 'body', 'bodyAgoCntnt']
-    metadf=metadf[metacols]
+    metadf = metadf[metadf["secFutrsLawId"].isin(ids)]
+    metacols = [
+        "secFutrsLawName",
+        "secFutrsLawNameAnno",
+        "wtAnttnSecFutrsLawName",
+        "secFutrsLawVersion",
+        "fileno",
+        "body",
+        "bodyAgoCntnt",
+    ]
+    metadf = metadf[metacols]
     # fillna to empty
-    metadf=metadf.fillna('')
-    metadf.columns=['文件名称','文件名称注解','法律条文名称','法律条文版本','文号','正文','正文注解']
+    metadf = metadf.fillna("")
+    metadf.columns = ["文件名称", "文件名称注解", "法律条文名称", "法律条文版本", "文号", "正文", "正文注解"]
     metadf = metadf.reset_index(drop=True)
-    dtldf=pd.read_csv(dtlpath)
-    dtldf=dtldf[dtldf['id'].isin(ids)]
-    dtlcol=['title', 'cntnt_x', 'cntnt_y']
-    dtldf=dtldf[dtlcol]
+    dtldf = pd.read_csv(dtlpath)
+    dtldf = dtldf[dtldf["id"].isin(ids)]
+    dtlcol = ["title", "cntnt_x", "cntnt_y"]
+    dtldf = dtldf[dtlcol]
     # fillna all columns with ''
-    dtldf = dtldf.fillna('')
+    dtldf = dtldf.fillna("")
     # change column name
-    dtldf.columns = ['标题', '内容', '法规条款']
-    dtldf=dtldf.reset_index(drop=True)
-    return metadf,dtldf
+    dtldf.columns = ["标题", "内容", "法规条款"]
+    dtldf = dtldf.reset_index(drop=True)
+    return metadf, dtldf
+
 
 # display event detail
 def display_lawdetail(search_df):
 
-    data=df2aggrid(search_df)
+    data = df2aggrid(search_df)
     # display data
     selected_rows = data["selected_rows"]
-    if selected_rows==[]:
-        st.error('请先选择查看详情')
+    if selected_rows == []:
+        st.error("请先选择查看详情")
         st.stop()
 
     # display selected rows
-    st.markdown('选择法规:')
+    st.markdown("选择法规:")
     # convert selected rows to dataframe
     selected_df = pd.DataFrame(selected_rows)
     # st.table(selected_df)
     # get id
-    idls = selected_df['lawid'].tolist()
+    idls = selected_df["lawid"].tolist()
     # hide column id
-    selected_df = selected_df.drop(columns=['lawid','id'])
+    selected_df = selected_df.drop(columns=["lawid", "id"])
     # display selected rows
     st.table(selected_df)
     # st.write(idls)
-    metadf,dtldf=get_lawdtlbyid(idls)
+    metadf, dtldf = get_lawdtlbyid(idls)
     # display meta data
-    st.markdown('法规元数据:')
+    st.markdown("法规元数据:")
     st.table(metadf)
     # display detail data
-    st.markdown('法规详情:')
+    st.markdown("法规详情:")
     st.table(dtldf)
