@@ -3,8 +3,9 @@ import os
 
 import pandas as pd
 import pinecone
+from dotenv import load_dotenv
 from langchain.chains import RetrievalQA
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
 from langchain.embeddings import (
     HuggingFaceEmbeddings,
     HuggingFaceHubEmbeddings,
@@ -12,7 +13,8 @@ from langchain.embeddings import (
 )
 
 # from langchain.indexes import VectorstoreIndexCreator
-from langchain.llms import OpenAIChat
+from langchain.llms import Cohere, OpenAIChat
+from langchain.prompts import PromptTemplate
 from langchain.prompts.chat import (
     AIMessagePromptTemplate,
     ChatPromptTemplate,
@@ -26,7 +28,33 @@ from langchain.vectorstores import (
     OpenSearchVectorSearch,
     Pinecone,
     Qdrant,
+    SupabaseVectorStore,
 )
+from supabase import Client, create_client
+
+load_dotenv()
+
+huggingfacehub_api_token = os.environ.get("HF_API_TOKEN")
+
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
+PINECONE_API_ENV = os.environ.get("PINECONE_API_ENV")
+
+AZURE_BASE_URL = os.environ.get("AZURE_BASE_URL")
+AZURE_API_KEY = os.environ.get("AZURE_API_KEY")
+AZURE_DEPLOYMENT_NAME = os.environ.get("AZURE_DEPLOYMENT_NAME")
+
+COHERE_API_KEY = os.environ.get("COHERE_API_KEY")
+
+uploadfolder = "uploads"
+filerawfolder = "fileraw"
+fileidxfolder = "ruleidx"
+backendurl = "http://localhost:8000"
+
+
+supabase_url = os.environ.get("SUPABASE_URL")
+supabase_key = os.environ.get("SUPABASE_KEY")
+
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # model_name='shibing624/text2vec-base-chinese'
 model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
@@ -36,25 +64,8 @@ model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 embeddings = HuggingFaceHubEmbeddings(
     repo_id=model_name,
     task="feature-extraction",
-    huggingfacehub_api_token="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",
+    huggingfacehub_api_token=huggingfacehub_api_token,
 )
-# read config from config.json
-with open("config.json", "r") as f:
-    config = json.load(f)
-
-# get openai api key from config.json
-api_key = config["openai_api_key"]
-
-PINECONE_API_KEY = config["pinecone_api_key"]
-PINECONE_API_ENV = config["pinecone_api_env"]
-
-
-os.environ["OPENAI_API_KEY"] = api_key
-
-uploadfolder = "uploads"
-filerawfolder = "fileraw"
-fileidxfolder = "ruleidx"
-backendurl = "http://localhost:8000"
 
 # openai_api_key = os.environ.get("OPENAI_API_KEY")
 # if openai_api_key is None:
@@ -62,9 +73,9 @@ backendurl = "http://localhost:8000"
 # else:
 #     print("已设置OPENAI_API_KEY" + openai_api_key)
 
-host = "localhost"
-port = 9200
-auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
+# host = "localhost"
+# port = 9200
+# auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
 # ca_certs_path = '/full/path/to/root-ca.pem' # Provide a CA bundle if you use intermediate CAs with your root CA.
 
 # model_name='shibing624/text2vec-base-chinese'
@@ -74,68 +85,83 @@ auth = ("admin", "admin")  # For testing only. Don't store credentials in code.
 
 
 # initialize pinecone
-pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_API_ENV)
+# pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_API_ENV)
 
 
 def gpt_answer(
     question, chaintype="stuff", industry="", top_k=4, model_name="gpt-3.5-turbo"
 ):
     collection_name = industry_name_to_code(industry)
-    # get faiss client
-    # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
-
-    # get qdrant client
-    # qdrant_client = QdrantClient(host=qdrant_host)
-
-    # # get qdrant docsearch
-    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
-
-    # embeddings = OpenAIEmbeddings()
-    # get chroma
-    # store = Chroma(
-    #     persist_directory=fileidxfolder,
-    #     embedding_function=embeddings,
-    #     collection_name=collection_name,
-    # )
 
     # get pinecone
-    index = pinecone.Index("ruledb")
-    store = Pinecone(
-        index, embeddings.embed_query, text_key="text", namespace=collection_name
+    # index = pinecone.Index("ruledb")
+    # store = Pinecone(
+    #     index, embeddings.embed_query, text_key="text", namespace=collection_name
+    # )
+    # get supabase
+    store = SupabaseVectorStore(
+        client=supabase,
+        table_name=collection_name,
+        query_name="match_" + collection_name,
+        embedding=embeddings,
+    )
+    # system_template = """根据提供的背景信息，请准确和全面地回答用户的问题。
+    # 如果您不确定或不知道答案，请直接说明您不知道，避免编造任何信息。
+    # ----------------
+    # {context}"""
+    # messages = [
+    #     SystemMessagePromptTemplate.from_template(system_template),
+    #     HumanMessagePromptTemplate.from_template("{question}"),
+    # ]
+    # prompt = ChatPromptTemplate.from_messages(messages)
+
+    prompt_template = """Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer.
+
+{context}
+
+Question: {question}
+Answer in Chinese:"""
+
+    prompt = PromptTemplate(
+        template=prompt_template, input_variables=["context", "question"]
     )
 
-    # prefix_messages = [
-    #     {
-    #         "role": "system",
-    #         # "content": "You are a helpful assistant that is very good at problem solving who thinks step by step.",
-    #         "content": "你是一位十分善于解决问题、按步骤思考的专业顾问。",
-    #     }
-    # ]
-    # llm = OpenAIChat(temperature=0, prefix_messages=prefix_messages)
-
-    system_template = """Use the following pieces of context to answer the users question. 
-    If you don't know the answer, just say that you don't know, don't try to make up an answer.
-    ----------------
-    {context}"""
-    messages = [
-        SystemMessagePromptTemplate.from_template(system_template),
-        HumanMessagePromptTemplate.from_template("{question}"),
-    ]
-    prompt = ChatPromptTemplate.from_messages(messages)
-
     chain_type_kwargs = {"prompt": prompt}
-    llm = ChatOpenAI(model_name=model_name, max_tokens=512)
+
+    import openai
+
+    # openai.api_base="https://tiny-shadow-5144.vixt.workers.dev/v1"
+    # openai.api_base="https://super-heart-4116.vixt.workers.dev/v1"
+    openai.api_base = "https://az.139105.xyz/v1"
+
+    # llm = ChatOpenAI(model_name=model_name )
+    llm = ChatOpenAI(model_name=model_name, openai_api_key=AZURE_API_KEY)
+
+    # use azure model
+    #     llm = AzureChatOpenAI(
+    #     openai_api_base=AZURE_BASE_URL,
+    #     openai_api_version="2023-03-15-preview",
+    #     deployment_name=AZURE_DEPLOYMENT_NAME,
+    #     openai_api_key=AZURE_API_KEY,
+    #     openai_api_type = "azure",
+    # )
+    # use cohere model
+    # llm = Cohere(model="command-xlarge-nightly",cohere_api_key=COHERE_API_KEY)
+
     # chain = VectorDBQA.from_chain_type(
+    receiver = store.as_retriever()
+    receiver.search_kwargs["k"] = top_k
+
     chain = RetrievalQA.from_chain_type(
         llm,
         chain_type=chaintype,
         # vectorstore=store,
-        retriever=store.as_retriever(),
+        retriever=receiver,
         # k=top_k,
         return_source_documents=True,
         chain_type_kwargs=chain_type_kwargs,
     )
-    result = chain({"query": question, "top_k_docs_for_context": top_k})
+    result = chain({"query": question})
 
     # docs = store.similarity_search(question)
     # qa_chain=load_qa_with_sources_chain(llm,chain_type=chaintype)
@@ -160,10 +186,10 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
 
     # get pinecone
-    index = pinecone.Index("ruledb")
-    store = Pinecone(
-        index, embeddings.embed_query, text_key="text", namespace=collection_name
-    )
+    # index = pinecone.Index("ruledb")
+    # store = Pinecone(
+    #     index, embeddings.embed_query, text_key="text", namespace=collection_name
+    # )
     # get chroma
     # store = Chroma(
     #     persist_directory=fileidxfolder,
@@ -183,12 +209,19 @@ def similarity_search(question, topk=4, industry="", items=[]):
     # # text_field="text",
     # )
 
+    # get supabase
+    store = SupabaseVectorStore(
+        client=supabase,
+        table_name=collection_name,
+        query_name="match_" + collection_name,
+        embedding=embeddings,
+    )
     # List all collections
     # collections = store.list_collections()
 
     # print(collections)
 
-    filter = {"监管要求": "商业银行信息科技风险管理指引"}
+    # filter = {"监管要求": "商业银行信息科技风险管理指引"}
     #     filter ={
     #   "key": "监管要求",
     #   "type": "string",
@@ -197,12 +230,12 @@ def similarity_search(question, topk=4, industry="", items=[]):
     #   }
     # }
 
-    filter = convert_list_to_dict(items)
+    # filter = convert_list_to_dict(items)
 
     # substore=collection.query(["query text"], {"where": flter})
     # print(filter)
     # filter=None
-    docs = store.similarity_search(query=question, k=topk, filter=filter)
+    docs = store.similarity_search(query=question, k=topk)
     df = docs_to_df(docs)
     # df=None
     return df

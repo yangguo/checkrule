@@ -12,7 +12,13 @@ from checkrule import (  # searchrule,
 )
 
 # from plc2audit import predict
-from gptfuc import add_ruleindex, build_ruleindex, gpt_answer, similarity_search,delete_db
+from gptfuc import (
+    add_ruleindex,
+    build_ruleindex,
+    delete_db,
+    gpt_answer,
+    similarity_search,
+)
 from utils import (  # keybert_keywords get_most_similar,
     combine_df_columns,
     get_folder_list,
@@ -179,7 +185,7 @@ def main():
             #     # convert to list
             #     new_keywords_list = new_keywords_str.split()
 
-            top = st.sidebar.slider("匹配数量选择", min_value=1, max_value=10, value=3)
+            top = st.sidebar.slider("匹配数量选择", min_value=1, max_value=20, value=3)
 
             search = st.sidebar.button("搜索条款")
 
@@ -238,7 +244,12 @@ def main():
             fullresultdf, total = searchByItem(
                 searchresult, make_choice, column_text, ""
             )
+            # reset index
+            fullresultdf = fullresultdf.reset_index(drop=True)
             st.write(fullresultdf)
+            # get total number of results
+            total = fullresultdf.shape[0]
+            st.markdown("共搜索到" + str(total) + "条结果")
             # metadata = fullresultdf[['监管要求','结构']].to_dict(orient="records")
             # st.write(metadata)
             # button to build model
@@ -266,7 +277,7 @@ def main():
                 "选择链条类型", ["stuff", "map_reduce", "refine", "map_rerank"]
             )  # button to search
             # choose model
-            model_name = st.selectbox('选择模型', ['gpt-3.5-turbo', 'gpt-4'])
+            model_name = st.selectbox("选择模型", ["gpt-3.5-turbo", "gpt-4"])
             search = st.button("搜索")
             if search:
                 with st.spinner("正在搜索..."):
@@ -287,7 +298,7 @@ def main():
             if delete_model:
                 with st.spinner("正在删除模型..."):
                     try:
-                        delete_db(industry_choice,make_choice)
+                        delete_db(industry_choice, make_choice)
                         st.success("模型删除成功")
                     except Exception as e:
                         st.error(e)
