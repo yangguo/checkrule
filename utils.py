@@ -1,12 +1,7 @@
-import os, glob
-import numpy as np
+import glob
+import os
+
 import pandas as pd
-# import streamlit as st
-# import torch
-# import asyncio
-# import spacy
-# from textrank4zh import TextRank4Sentence
-# from sklearn.cluster import AgglomerativeClustering
 
 # from keybert import KeyBERT
 # from sentence_transformers import SentenceTransformer
@@ -15,7 +10,15 @@ from st_aggrid import AgGrid
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 from st_aggrid.shared import GridUpdateMode
 
-modelfolder = 'junnyu/roformer_chinese_sim_char_ft_base'
+# import streamlit as st
+# import torch
+# import asyncio
+# import spacy
+# from textrank4zh import TextRank4Sentence
+# from sklearn.cluster import AgglomerativeClustering
+
+
+# modelfolder = 'junnyu/roformer_chinese_sim_char_ft_base'
 
 # tokenizer = RoFormerTokenizer.from_pretrained(modelfolder)
 # model = RoFormerModel.from_pretrained(modelfolder)
@@ -23,7 +26,7 @@ modelfolder = 'junnyu/roformer_chinese_sim_char_ft_base'
 # smodel = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 # nlp = spacy.load('zh_core_web_lg')
 
-rulefolder = 'rules'
+rulefolder = "rules"
 
 
 # def async sent2emb(sentences):
@@ -95,12 +98,12 @@ rulefolder = 'rules'
 
 # @st.cache
 def get_csvdf(rulefolder):
-    files2 = glob.glob(rulefolder + '**/*.csv', recursive=True)
+    files2 = glob.glob(rulefolder + "**/*.csv", recursive=True)
     dflist = []
     for filepath in files2:
         basename = os.path.basename(filepath)
         filename = os.path.splitext(basename)[0]
-        newdf = rule2df(filename, filepath)[['监管要求', '结构', '条款']]
+        newdf = rule2df(filename, filepath)[["监管要求", "结构", "条款"]]
         dflist.append(newdf)
     alldf = pd.concat(dflist, axis=0)
     return alldf
@@ -108,42 +111,42 @@ def get_csvdf(rulefolder):
 
 def rule2df(filename, filepath):
     docdf = pd.read_csv(filepath)
-    docdf['监管要求'] = filename
+    docdf["监管要求"] = filename
     return docdf
 
 
-def get_embedding(folder, emblist):
-    dflist = []
-    for file in emblist:
-        filepath = os.path.join(folder, file + '.npy')
-        embeddings = np.load(filepath)
-        dflist.append(embeddings)
-    alldf = np.concatenate(dflist)
-    return alldf
+# def get_embedding(folder, emblist):
+#     dflist = []
+#     for file in emblist:
+#         filepath = os.path.join(folder, file + '.npy')
+#         embeddings = np.load(filepath)
+#         dflist.append(embeddings)
+#     alldf = np.concatenate(dflist)
+#     return alldf
 
 
 # split string by space into words, add brackets before and after words, combine into text
 def split_words(text):
     words = text.split()
-    words = ['(?=.*' + word + ')' for word in words]
-    new = ''.join(words)
+    words = ["(?=.*" + word + ")" for word in words]
+    new = "".join(words)
     return new
 
 
 # get section list from df
 def get_section_list(searchresult, make_choice):
-    '''
+    """
     get section list from df
-    
+
     args: searchresult, make_choice
     return: section_list
-    '''
-    df = searchresult[(searchresult['监管要求'].isin(make_choice))]
-    conls = df['结构'].drop_duplicates().tolist()
+    """
+    df = searchresult[(searchresult["监管要求"].isin(make_choice))]
+    conls = df["结构"].drop_duplicates().tolist()
     unils = []
     # print(conls)
     for con in conls:
-        itemls = con.split('/')
+        itemls = con.split("/")
         #     print(itemls[:-1])
         for item in itemls[:2]:
             unils.append(item)
@@ -191,7 +194,8 @@ def get_section_list(searchresult, make_choice):
 # get folder name list from path
 def get_folder_list(path):
     folder_list = [
-        folder for folder in os.listdir(path)
+        folder
+        for folder in os.listdir(path)
         if os.path.isdir(os.path.join(path, folder))
     ]
     return folder_list
@@ -316,7 +320,7 @@ def get_rulefolder(industry_choice):
 
 # combine df columns into one field and return a list
 def combine_df_columns(df, cols):
-    df_combined = df[cols].apply(lambda x: ' '.join(x), axis=1)
+    df_combined = df[cols].apply(lambda x: " ".join(x), axis=1)
     # return list
     return df_combined.tolist()
 
@@ -326,26 +330,30 @@ def df2aggrid(df):
     gb.configure_pagination()
     gb.configure_side_bar()
     # gb.configure_auto_height()
-    gb.configure_default_column(groupable=True,
-                                value=True,
-                                # resizable=True,
-                                # wrap_text=True,
-                                enableRowGroup=True,
-                                aggFunc="sum",
-                                editable=True)
+    gb.configure_default_column(
+        groupable=True,
+        value=True,
+        # resizable=True,
+        # wrap_text=True,
+        enableRowGroup=True,
+        aggFunc="sum",
+        editable=True,
+    )
     gb.configure_selection(selection_mode="single", use_checkbox=True)
     # configure column visibility
     gb.configure_column(field="lawid", hide=True)
     gb.configure_column(field="id", hide=True)
 
     gridOptions = gb.build()
-    ag_grid = AgGrid(df,
-                     theme='blue',
-                    #  height=800,
-                     fit_columns_on_grid_load=True,# fit columns to grid width
-                     gridOptions=gridOptions,# grid options
-                    #  key='select_grid', # key is used to identify the grid
-                     update_mode=GridUpdateMode.SELECTION_CHANGED,
-                    #  update_mode=GridUpdateMode.NO_UPDATE,
-                     enable_enterprise_modules=True)
+    ag_grid = AgGrid(
+        df,
+        theme="blue",
+        #  height=800,
+        fit_columns_on_grid_load=True,  # fit columns to grid width
+        gridOptions=gridOptions,  # grid options
+        #  key='select_grid', # key is used to identify the grid
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        #  update_mode=GridUpdateMode.NO_UPDATE,
+        enable_enterprise_modules=True,
+    )
     return ag_grid

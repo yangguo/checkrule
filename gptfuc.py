@@ -7,6 +7,7 @@ import openai
 # import chromadb
 # import faiss
 import pandas as pd
+import streamlit as st
 from dotenv import load_dotenv
 
 # from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
@@ -63,7 +64,7 @@ api_key = os.environ.get("OPENAI_API_KEY")
 supabase_url = os.environ.get("SUPABASE_URL")
 supabase_key = os.environ.get("SUPABASE_KEY")
 
-supabase: Client = create_client(supabase_url, supabase_key)
+# supabase: Client = create_client(supabase_url, supabase_key)
 
 
 AZURE_BASE_URL = os.environ.get("AZURE_BASE_URL")
@@ -120,6 +121,15 @@ backendurl = "http://localhost:8000"
 
 # initialize pinecone
 # pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_API_ENV)
+
+
+@st.cache_resource
+def init_supabase():
+    supabase: Client = create_client(supabase_url, supabase_key)
+    return supabase
+
+
+supabase = init_supabase()
 
 
 def build_ruleindex(df, industry=""):
