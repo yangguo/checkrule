@@ -113,3 +113,5 @@ streamlit-echarts
 keybert
 chromadb
 pinecone-client
+openai
+supabase

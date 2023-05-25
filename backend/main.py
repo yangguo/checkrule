@@ -6,6 +6,8 @@ from fastapi import FastAPI, File, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from gptfuncbk import gpt_answer, similarity_search
 from pydantic import BaseModel
+from checkrule import searchByItem,searchByName
+
 
 app = FastAPI()
 
@@ -47,3 +49,19 @@ async def gptanswer(input_data: InputData):
     source = sourcedf.to_dict(orient="records")
 
     return {"answer": answer, "source": source}
+
+
+@app.post("/keywords")
+async def keywords(input_data: InputData):
+    query = input_data.query
+    number = input_data.number
+    option = input_data.option
+
+    ruledf,rulels=searchByName("", option)
+    # Process the input data and generate a response
+    result_df = searchByItem(ruledf, rulels, '', query)
+
+    response_data = result_df.to_dict(orient="records")
+
+    
+    return {"response_data": response_data}

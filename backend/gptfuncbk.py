@@ -67,6 +67,7 @@ embeddings = HuggingFaceHubEmbeddings(
     huggingfacehub_api_token=huggingfacehub_api_token,
 )
 
+
 # openai_api_key = os.environ.get("OPENAI_API_KEY")
 # if openai_api_key is None:
 #     print("请设置OPENAI_API_KEY")
