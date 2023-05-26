@@ -514,6 +514,8 @@ def industry_name_to_code(industry_name):
         return "fund"
     elif industry_name == "期货":
         return "futures"
+    elif industry_name == "投行":
+        return "invbank"
     else:
         return "other"
 
