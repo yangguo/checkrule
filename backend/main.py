@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from gptfuncbk import gpt_answer, similarity_search
 from pydantic import BaseModel
 from checkrule import searchByItem,searchByName
-
+import asyncio
 
 app = FastAPI()
 
@@ -30,7 +30,7 @@ async def search(input_data: InputData):
     option = input_data.option
 
     # Process the input data and generate a response
-    result_df = similarity_search(query, topk=number, industry=option, items=[])
+    result_df = await asyncio.to_thread(similarity_search,query, topk=number, industry=option, items=[])
 
     response_data = result_df.to_dict(orient="records")
 
@@ -44,7 +44,7 @@ async def gptanswer(input_data: InputData):
     option = input_data.option
 
     # Process the input data and generate a response
-    answer, sourcedf = gpt_answer(question=query, industry=option, top_k=number)
+    answer, sourcedf = await asyncio.to_thread(gpt_answer,question=query, industry=option, top_k=number)
 
     source = sourcedf.to_dict(orient="records")
 
@@ -57,9 +57,12 @@ async def keywords(input_data: InputData):
     number = input_data.number
     option = input_data.option
 
-    ruledf,rulels=searchByName("", option)
+    ruledf,rulels= await asyncio.to_thread(searchByName,"", option)
     # Process the input data and generate a response
-    result_df = searchByItem(ruledf, rulels, '', query)
+    result_df = await asyncio.to_thread(searchByItem,ruledf, rulels, '', query)
+
+    if number != 0:
+        result_df = result_df.head(number)
 
     response_data = result_df.to_dict(orient="records")
 
