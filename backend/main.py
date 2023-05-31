@@ -6,6 +6,7 @@ from typing import List, Union
 import pandas as pd
 from dbcsrc2 import searchcsrc2
 from dbpboc import searchpboc
+from dbcbirc import searchcbirc
 from fastapi import FastAPI, File, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from gptfuncbk import gpt_answer, similarity_search
@@ -50,6 +51,17 @@ class PbocItem(BaseModel):
     penalty_text: str = ""
     org_text: str = ""
     province: List[str] = []
+
+
+class CbircItem(BaseModel):
+    start_date: date = date(2023, 1, 1)
+    end_date: date = date(2023, 1, 1)
+    wenhao_text: str = ""
+    people_text: str = ""
+    event_text: str = ""
+    law_text: str = ""
+    penalty_text: str = ""
+    org_text: str = ""
 
 
 @app.post("/search")
@@ -158,6 +170,34 @@ async def pensearchpboc(item: PbocItem):
         penalty_text,
         org_text,
         province,
+    )
+
+    response_data = result_df.to_dict(orient="records")
+
+    return {"response_data": response_data}
+
+
+@app.post("/pensearchcbirc")
+async def pensearchcbirc(item: CbircItem):
+    start_date = item.start_date
+    end_date = item.end_date
+    wenhao_text = item.wenhao_text
+    people_text = item.people_text
+    event_text = item.event_text
+    law_text = item.law_text
+    penalty_text = item.penalty_text
+    org_text = item.org_text
+
+    result_df = await asyncio.to_thread(
+        searchcbirc,
+        start_date,
+        end_date,
+        wenhao_text,
+        people_text,
+        event_text,
+        law_text,
+        penalty_text,
+        org_text,
     )
 
     response_data = result_df.to_dict(orient="records")
