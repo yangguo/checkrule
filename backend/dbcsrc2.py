@@ -83,7 +83,7 @@ def searchcsrc2(
     # searchdf = pd.DataFrame(list(cursor))[col]
     df = pd.DataFrame(list(cursor))
     if not df.empty:
-        print(df.columns)  # prints the actual column names in the dataframe
+        # print(df.columns)  # prints the actual column names in the dataframe
         searchdf = df[col]
         # fillna
         searchdf = searchdf.fillna("")
