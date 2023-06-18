@@ -4,12 +4,12 @@ from datetime import date, datetime
 from typing import List, Union
 
 import pandas as pd
+from dbcbirc import searchcbirc
 from dbcsrc2 import searchcsrc2
 from dbpboc import searchpboc
-from dbcbirc import searchcbirc
 from fastapi import FastAPI, File, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
-from gptfuncbk import gpt_answer, similarity_search
+from gptfuncbk import get_audit_steps, gpt_answer, similarity_search
 from pydantic import BaseModel
 
 from checkrule import searchByItem, searchByName
@@ -64,6 +64,10 @@ class CbircItem(BaseModel):
     org_text: str = ""
 
 
+class AuditRequest(BaseModel):
+    query: str = ""
+
+
 @app.post("/search")
 async def search(input_data: InputData):
     query = input_data.query
@@ -86,11 +90,17 @@ async def gptanswer(input_data: InputData):
     number = input_data.number
     option = input_data.option
 
+    # print input data
+    print(query, number, option)
     # Process the input data and generate a response
     answer, sourcedf = await asyncio.to_thread(
         gpt_answer, question=query, industry=option, top_k=number
     )
-
+    # print answer
+    print(answer)
+    # print sourcedf
+    print(sourcedf)
+    # convert sourcedf to dict
     source = sourcedf.to_dict(orient="records")
 
     return {"answer": answer, "source": source}
@@ -203,3 +213,18 @@ async def pensearchcbirc(item: CbircItem):
     response_data = result_df.to_dict(orient="records")
 
     return {"response_data": response_data}
+
+
+@app.post("/audit_steps")
+async def generate_audit_steps(audit_request: AuditRequest):
+    # print input data
+    print(audit_request.query)
+    try:
+        audit_response = await asyncio.to_thread(get_audit_steps, audit_request.query)
+        # print audit_response
+        print(audit_response)
+        return {"status": "success", "audit_response": audit_response}
+    except Exception as e:
+        # print error
+        print(e)
+        return {"status": "error", "message": str(e)}
