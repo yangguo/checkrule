@@ -1,22 +1,25 @@
 import json
 import os
 
+import openai
 import pandas as pd
 import pinecone
 from dotenv import load_dotenv
+from langchain import LLMChain
 from langchain.chains import RetrievalQA
 from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
 from langchain.embeddings import (
     HuggingFaceEmbeddings,
     HuggingFaceHubEmbeddings,
     OpenAIEmbeddings,
+    EmbaasEmbeddings,
 )
 
 # from langchain.indexes import VectorstoreIndexCreator
 from langchain.llms import Cohere, OpenAIChat
+from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 from langchain.prompts import PromptTemplate
 from langchain.prompts.chat import (
-    AIMessagePromptTemplate,
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
     SystemMessagePromptTemplate,
@@ -58,14 +61,44 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 # model_name='shibing624/text2vec-base-chinese'
 model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+
 # embeddings =HuggingFaceEmbeddings(model_name=model_name)
 # embeddings = OpenAIEmbeddings()
 
-embeddings = HuggingFaceHubEmbeddings(
-    repo_id=model_name,
-    task="feature-extraction",
-    huggingfacehub_api_token=huggingfacehub_api_token,
+# embeddings = HuggingFaceHubEmbeddings(
+#     repo_id=model_name,
+#     task="feature-extraction",
+#     huggingfacehub_api_token=huggingfacehub_api_token,
+# )
+
+embeddings = EmbaasEmbeddings(
+    model="paraphrase-multilingual-mpnet-base-v2",
+    instruction="",
 )
+
+# openai.api_base="https://super-heart-4116.vixt.workers.dev/v1"
+# openai.api_base="https://tiny-shadow-5144.vixt.workers.dev/v1"
+# openai.api_base = "https://az.139105.xyz/v1"
+
+
+# llm = ChatOpenAI(model_name="gpt-3.5-turbo",
+#                  openai_api_base="https://op.139105.xyz/v1",
+#                  openai_api_key=api_key)
+
+llm = ChatOpenAI(model_name="gpt-3.5-turbo", 
+                 openai_api_base="https://az.139105.xyz/v1",
+                 openai_api_key=AZURE_API_KEY)
+
+# use azure model
+#     llm = AzureChatOpenAI(
+#     openai_api_base=AZURE_BASE_URL,
+#     openai_api_version="2023-03-15-preview",
+#     deployment_name=AZURE_DEPLOYMENT_NAME,
+#     openai_api_key=AZURE_API_KEY,
+#     openai_api_type = "azure",
+# )
+# use cohere model
+# llm = Cohere(model="command-xlarge-nightly",cohere_api_key=COHERE_API_KEY)
 
 
 # openai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -128,26 +161,6 @@ Answer in Chinese:"""
     )
 
     chain_type_kwargs = {"prompt": prompt}
-
-    import openai
-
-    # openai.api_base="https://tiny-shadow-5144.vixt.workers.dev/v1"
-    # openai.api_base="https://super-heart-4116.vixt.workers.dev/v1"
-    openai.api_base = "https://az.139105.xyz/v1"
-
-    # llm = ChatOpenAI(model_name=model_name )
-    llm = ChatOpenAI(model_name=model_name, openai_api_key=AZURE_API_KEY)
-
-    # use azure model
-    #     llm = AzureChatOpenAI(
-    #     openai_api_base=AZURE_BASE_URL,
-    #     openai_api_version="2023-03-15-preview",
-    #     deployment_name=AZURE_DEPLOYMENT_NAME,
-    #     openai_api_key=AZURE_API_KEY,
-    #     openai_api_type = "azure",
-    # )
-    # use cohere model
-    # llm = Cohere(model="command-xlarge-nightly",cohere_api_key=COHERE_API_KEY)
 
     # chain = VectorDBQA.from_chain_type(
     receiver = store.as_retriever()
@@ -277,6 +290,10 @@ def industry_name_to_code(industry_name):
         return "futures"
     elif industry_name == "投行":
         return "invbank"
+    elif industry_name == "反洗钱":
+        return "aml"
+    elif industry_name == "医药":
+        return "pharma"
     else:
         return "other"
 
@@ -288,3 +305,49 @@ def convert_list_to_dict(lst):
         return {"监管要求": lst[0]}
     else:
         return {"监管要求": {"$in": [item for item in lst]}}
+
+
+def get_audit_steps(text, model_name="gpt-3.5-turbo"):
+    response_schemas = [
+        ResponseSchema(name="审计步骤", description="针对监管要求，需要执行的多项具体审计工作步骤"),
+        ResponseSchema(name="访谈问题", description="针对监管要求，需要向被审计方提出的多项访谈问题"),
+        ResponseSchema(name="资料清单", description="针对监管要求，需要被审计方准备的多项审计资料"),
+    ]
+
+    output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
+
+    format_instructions = output_parser.get_format_instructions()
+
+    template = """
+    你是一位具有10年资深经验的内部审计师，你的任务是根据监管要求生成审计工作计划。
+
+    我需要你根据以下监管要求分解成审计目标，并针对这个审计目标编写详细的审计工作计划，并提供相关内容。内容包括：审计工作步骤、访谈问题、资料清单。
+
+    所有的审计步骤、访谈问题和资料清单应当在一个完整的回复中给出。
+
+    {format_instructions}
+
+    """
+
+    system_message_prompt = SystemMessagePromptTemplate.from_template(template)
+
+    human_template = """    
+    监管要求的内容如下:
+    {text}
+    """
+
+    human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
+
+    chat_prompt = ChatPromptTemplate(
+        messages=[system_message_prompt, human_message_prompt],
+        input_variables=["text"],
+        partial_variables={"format_instructions": format_instructions},
+    )
+
+    chain = LLMChain(llm=llm, prompt=chat_prompt)
+    response = chain.run(text=text)
+
+    # print(response)
+    json_response = output_parser.parse(response)
+
+    return json_response

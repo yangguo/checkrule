@@ -7,6 +7,12 @@ WORKDIR /app
 # Copy the requirements.txt file into the container
 COPY requirements.txt .
 
+# update pip from tsinghua mirror
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+# Upgrade pip
+RUN pip install --upgrade pip
+
 # Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 

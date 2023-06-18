@@ -22,6 +22,7 @@ from langchain.embeddings import (
     HuggingFaceEmbeddings,
     HuggingFaceHubEmbeddings,
     OpenAIEmbeddings,
+    EmbaasEmbeddings,
 )
 
 # from langchain.indexes import VectorstoreIndexCreator
@@ -77,23 +78,51 @@ PINECONE_API_ENV = os.environ.get("PINECONE_API_ENV")
 HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 
 # model_name='shibing624/text2vec-base-chinese'
-model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+# model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+# model_name = "sentence-transformers/stsb-xlm-r-multilingual"
 # embeddings =HuggingFaceEmbeddings(model_name=model_name)
 # embeddings = OpenAIEmbeddings()
 
-embeddings = HuggingFaceHubEmbeddings(
-    repo_id=model_name,
-    task="feature-extraction",
-    huggingfacehub_api_token=HF_API_TOKEN,
+# embeddings = HuggingFaceHubEmbeddings(
+#     repo_id=model_name,
+#     task="feature-extraction",
+#     huggingfacehub_api_token=HF_API_TOKEN,
+# )
+# os.environ["OPENAI_API_TYPE"] = "azure"
+# os.environ["OPENAI_API_BASE"] = AZURE_BASE_URL
+# os.environ["OPENAI_API_KEY"] = AZURE_API_KEY
+# os.environ["OPENAI_API_VERSION"] = "2023-03-15-preview"
+
+# embeddings = OpenAIEmbeddings(
+#     deployment="ada02",
+#     model="text-embedding-ada-002",
+#     openai_api_base=AZURE_BASE_URL,
+#     openai_api_type="azure",
+#     openai_api_key=AZURE_API_KEY,
+#     openai_api_version="2023-05-15",
+# )
+
+embeddings = EmbaasEmbeddings(
+    model="paraphrase-multilingual-mpnet-base-v2",
+    instruction="",
 )
 
 # openai.api_base="https://tiny-shadow-5144.vixt.workers.dev/v1"
 # openai.api_base="https://super-heart-4116.vixt.workers.dev/v1"
-openai.api_base = "https://az.139105.xyz/v1"
+# openai.api_base = "https://az.139105.xyz/v1"
+# openai.api_base = "https://op.139105.xyz/v1"
 
-# llm = ChatOpenAI(model_name=model_name )
-llm = ChatOpenAI(model_name=model_name, openai_api_key=AZURE_API_KEY)
 
+llm = ChatOpenAI(model_name="gpt-3.5-turbo",
+                 openai_api_base="https://op.139105.xyz/v1",
+                 openai_api_key=api_key)
+
+# llm = ChatOpenAI(model_name="gpt-3.5-turbo", 
+#                  openai_api_base="https://az.139105.xyz/v1",
+#                  openai_api_key=AZURE_API_KEY)
+
+
+# embeddings = OpenAIEmbeddings()
 
 # use azure model
 #     llm = AzureChatOpenAI(
@@ -123,7 +152,7 @@ backendurl = "http://localhost:8000"
 # pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_API_ENV)
 
 
-@st.cache_resource
+# @st.cache_resource
 def init_supabase():
     supabase: Client = create_client(supabase_url, supabase_key)
     return supabase
@@ -364,14 +393,15 @@ def gpt_answer(
     #     openai_api_type = "azure",
     # )
     # chain = VectorDBQA.from_chain_type(
-    receiver = store.as_retriever()
-    receiver.search_kwargs["k"] = top_k
+    retriever = store.as_retriever(search_kwargs={"k": top_k})
+    # retriever = store.as_retriever(search_type="mmr",search_kwargs={"k": top_k})
+
 
     chain = RetrievalQA.from_chain_type(
         llm,
         chain_type=chaintype,
         # vectorstore=store,
-        retriever=receiver,
+        retriever=retriever,
         # k=top_k,
         return_source_documents=True,
         chain_type_kwargs=chain_type_kwargs,
@@ -459,7 +489,12 @@ def similarity_search(question, topk=4, industry="", items=[]):
     data_json = json.loads(filterdata.json())
 
     # filter=filter_value
+    print(store.table_name)
+    print(topk)
+    print(question)
     docs = store.similarity_search(query=question, k=topk)
+    # retriever = store.as_retriever(search_type="mmr",search_kwargs={"k": topk})
+    # docs = retriever.get_relevant_documents(question)
     df = docs_to_df(docs)
     return df
 
@@ -503,7 +538,7 @@ def industry_name_to_code(industry_name):
     """
     Converts an industry name to an industry code.
     """
-    industry_name = industry_name.lower()
+    # industry_name = industry_name.lower()
     if industry_name == "银行":
         return "bank"
     elif industry_name == "保险":
@@ -516,6 +551,8 @@ def industry_name_to_code(industry_name):
         return "futures"
     elif industry_name == "投行":
         return "invbank"
+    elif industry_name == "医药":
+        return "pharma"
     else:
         return "other"
 
