@@ -12,7 +12,7 @@ COPY requirements.txt .
 
 # RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
-# RUN pip config set global.index-url https://pypi.douban.com/simple/
+# RUN pip config set global.index-url https://mirrors.cloud.tencent.com/pypi/simple
 
 # Increase the stack size for new threads in the container
 # RUN ulimit -s 2048
@@ -35,16 +35,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose the port your FastAPI app will run on
-# EXPOSE 8000
+EXPOSE 8000
 
-# # Start the FastAPI app using Uvicorn
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the FastAPI app using Uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Start the Flask app
 # CMD ["python", "app.py"]
 
-# Expose the port your Flask app will run on
-EXPOSE 5000
+# # Expose the port your Flask app will run on
+# EXPOSE 5000
 
-# Start the Flask app with Gunicorn
-CMD ["gunicorn", "-b", ":5000", "your_flask_app:app"]
+# # Start the Flask app with Gunicorn
+# CMD ["gunicorn", "-b", ":5000", "your_flask_app:app"]
