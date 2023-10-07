@@ -5,14 +5,13 @@ import openai
 import pandas as pd
 import pinecone
 from dotenv import load_dotenv
-from langchain import LLMChain
-from langchain.chains import RetrievalQA
+from langchain.chains import LLMChain, RetrievalQA
 from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
 from langchain.embeddings import (
+    EmbaasEmbeddings,
     HuggingFaceEmbeddings,
     HuggingFaceHubEmbeddings,
     OpenAIEmbeddings,
-    EmbaasEmbeddings,
 )
 
 # from langchain.indexes import VectorstoreIndexCreator
@@ -65,16 +64,16 @@ model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 # embeddings =HuggingFaceEmbeddings(model_name=model_name)
 # embeddings = OpenAIEmbeddings()
 
-# embeddings = HuggingFaceHubEmbeddings(
-#     repo_id=model_name,
-#     task="feature-extraction",
-#     huggingfacehub_api_token=huggingfacehub_api_token,
-# )
-
-embeddings = EmbaasEmbeddings(
-    model="paraphrase-multilingual-mpnet-base-v2",
-    instruction="",
+embeddings = HuggingFaceHubEmbeddings(
+    repo_id=model_name,
+    task="feature-extraction",
+    huggingfacehub_api_token=huggingfacehub_api_token,
 )
+
+# embeddings = EmbaasEmbeddings(
+#     model="paraphrase-multilingual-mpnet-base-v2",
+#     instruction="",
+# )
 
 # openai.api_base="https://super-heart-4116.vixt.workers.dev/v1"
 # openai.api_base="https://tiny-shadow-5144.vixt.workers.dev/v1"
@@ -85,9 +84,11 @@ embeddings = EmbaasEmbeddings(
 #                  openai_api_base="https://op.139105.xyz/v1",
 #                  openai_api_key=api_key)
 
-llm = ChatOpenAI(model_name="gpt-3.5-turbo", 
-                 openai_api_base="https://az.139105.xyz/v1",
-                 openai_api_key=AZURE_API_KEY)
+llm = ChatOpenAI(
+    model_name="gpt-3.5-turbo",
+    openai_api_base="https://az.139105.xyz/v1",
+    openai_api_key=AZURE_API_KEY,
+)
 
 # use azure model
 #     llm = AzureChatOpenAI(
@@ -123,7 +124,12 @@ llm = ChatOpenAI(model_name="gpt-3.5-turbo",
 
 
 def gpt_answer(
-    question, chaintype="stuff", industry="", top_k=4, model_name="gpt-3.5-turbo"
+    question,
+    chaintype="stuff",
+    industry="",
+    top_k=4,
+    model_name="gpt-3.5-turbo",
+    items=[],
 ):
     collection_name = industry_name_to_code(industry)
 
@@ -162,15 +168,16 @@ Answer in Chinese:"""
 
     chain_type_kwargs = {"prompt": prompt}
 
+    filter = convert_list_to_dict(items)
+
     # chain = VectorDBQA.from_chain_type(
-    receiver = store.as_retriever()
-    receiver.search_kwargs["k"] = top_k
+    retriever = store.as_retriever(search_kwargs={"k": top_k, "filter": filter})
 
     chain = RetrievalQA.from_chain_type(
         llm,
         chain_type=chaintype,
         # vectorstore=store,
-        retriever=receiver,
+        retriever=retriever,
         # k=top_k,
         return_source_documents=True,
         chain_type_kwargs=chain_type_kwargs,
@@ -191,37 +198,6 @@ Answer in Chinese:"""
 
 def similarity_search(question, topk=4, industry="", items=[]):
     collection_name = industry_name_to_code(industry)
-    # get faiss client
-    # store = FAISS.load_local(fileidxfolder, embeddings)
-
-    # get qdrant client
-    # qdrant_client = QdrantClient(host=qdrant_host)
-    # # get qdrant docsearch
-    # store = Qdrant(qdrant_client, collection_name=collection_name, embedding_function=embeddings.embed_query)
-
-    # get pinecone
-    # index = pinecone.Index("ruledb")
-    # store = Pinecone(
-    #     index, embeddings.embed_query, text_key="text", namespace=collection_name
-    # )
-    # get chroma
-    # store = Chroma(
-    #     persist_directory=fileidxfolder,
-    #     embedding_function=embeddings,
-    #     collection_name=collection_name,
-    # )
-
-    # collections = store._client.list_collections()
-    # for collection in collections:
-    #     print(collection.name)
-
-    # # get milvus
-    # store = Milvus(
-    # embedding_function=OpenAIEmbeddings(),
-    # connection_args={"host": "127.0.0.1", "port": "19530"},
-    # # collection_name=collection_name,
-    # # text_field="text",
-    # )
 
     # get supabase
     store = SupabaseVectorStore(
@@ -230,26 +206,13 @@ def similarity_search(question, topk=4, industry="", items=[]):
         query_name="match_" + collection_name,
         embedding=embeddings,
     )
-    # List all collections
-    # collections = store.list_collections()
 
-    # print(collections)
-
-    # filter = {"监管要求": "商业银行信息科技风险管理指引"}
-    #     filter ={
-    #   "key": "监管要求",
-    #   "type": "string",
-    #   "match": {
-    #     "value": "商业银行信息科技风险管理指引"
-    #   }
-    # }
-
-    # filter = convert_list_to_dict(items)
-
-    # substore=collection.query(["query text"], {"where": flter})
-    # print(filter)
+    filter = convert_list_to_dict(items)
+    # convert dict to json
+    # filter_json = json.dumps(filter)
+    print(filter)
     # filter=None
-    docs = store.similarity_search(query=question, k=topk)
+    docs = store.similarity_search(query=question, k=topk, filter=filter)
     df = docs_to_df(docs)
     # df=None
     return df
@@ -299,12 +262,10 @@ def industry_name_to_code(industry_name):
 
 
 def convert_list_to_dict(lst):
-    if len(lst) == 0:
-        return None
-    elif len(lst) == 1:
+    if len(lst) == 1:
         return {"监管要求": lst[0]}
     else:
-        return {"监管要求": {"$in": [item for item in lst]}}
+        return {}
 
 
 def get_audit_steps(text, model_name="gpt-3.5-turbo"):

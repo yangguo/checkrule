@@ -1,18 +1,16 @@
 # import scipy
-import ast
-import json
+# import ast
+# import json
 import os
+
 import pandas as pd
-from supabase import Client, create_client
-
 from gptfuncbk import industry_name_to_code
-
+from supabase import Client, create_client
 
 supabase_url = os.environ.get("SUPABASE_URL")
 supabase_key = os.environ.get("SUPABASE_KEY")
 
 supabase: Client = create_client(supabase_url, supabase_key)
-
 
 
 def searchByName(search_text, industry_choice):
@@ -34,7 +32,6 @@ def searchByName(search_text, industry_choice):
     choicels = filtered_results["监管要求"].unique().tolist()
 
     return filtered_results, choicels
-
 
 
 def searchByItem(searchresult, make_choice, column_text, item_text):
@@ -63,3 +60,14 @@ def split_words(text):
     words = ["(?=.*" + word + ")" for word in words]
     new = "".join(words)
     return new
+
+
+def searchByIndustrysupa(industry_choice):
+    table_name = industry_name_to_code(industry_choice)
+
+    metadata_name = table_name + "_metadata"
+    # Get all records from table and cast 'metadata' to text type
+    result = supabase.table(metadata_name).select("plc_value").execute()
+    # Convert JSON data to list
+    converted_list = [item["plc_value"] for item in result.data]
+    return converted_list

@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from gptfuncbk import get_audit_steps, gpt_answer, similarity_search
 from pydantic import BaseModel
 
-from checkrule import searchByItem, searchByName
+from checkrule import searchByIndustrysupa, searchByItem, searchByName
 
 app = FastAPI()
 
@@ -26,6 +26,7 @@ class InputData(BaseModel):
     query: str
     number: int
     option: str
+    make_choice: List[str] = []
 
 
 class CsrcItem(BaseModel):
@@ -68,15 +69,20 @@ class AuditRequest(BaseModel):
     query: str = ""
 
 
+class IndustryInput(BaseModel):
+    industry_choice: str = ""
+
+
 @app.post("/search")
 async def search(input_data: InputData):
     query = input_data.query
     number = input_data.number
     option = input_data.option
+    make_choice = input_data.make_choice
 
     # Process the input data and generate a response
     result_df = await asyncio.to_thread(
-        similarity_search, query, topk=number, industry=option, items=[]
+        similarity_search, query, topk=number, industry=option, items=make_choice
     )
 
     response_data = result_df.to_dict(orient="records")
@@ -89,12 +95,13 @@ async def gptanswer(input_data: InputData):
     query = input_data.query
     number = input_data.number
     option = input_data.option
+    make_choice = input_data.make_choice
 
     # print input data
     print(query, number, option)
     # Process the input data and generate a response
     answer, sourcedf = await asyncio.to_thread(
-        gpt_answer, question=query, industry=option, top_k=number
+        gpt_answer, question=query, industry=option, top_k=number, items=make_choice
     )
     # print answer
     print(answer)
@@ -111,10 +118,11 @@ async def keywords(input_data: InputData):
     query = input_data.query
     number = input_data.number
     option = input_data.option
+    make_choice = input_data.make_choice
 
     ruledf, rulels = await asyncio.to_thread(searchByName, "", option)
     # Process the input data and generate a response
-    result_df = await asyncio.to_thread(searchByItem, ruledf, rulels, "", query)
+    result_df = await asyncio.to_thread(searchByItem, ruledf, make_choice, "", query)
 
     if number != 0:
         result_df = result_df.head(number)
@@ -228,3 +236,9 @@ async def generate_audit_steps(audit_request: AuditRequest):
         # print error
         print(e)
         return {"status": "error", "message": str(e)}
+
+
+@app.post("/plclist")
+async def get_industry_list(input_data: IndustryInput):
+    choicels = await asyncio.to_thread(searchByIndustrysupa, input_data.industry_choice)
+    return {"choicels": choicels}
