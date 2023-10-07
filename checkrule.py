@@ -1,16 +1,20 @@
 # import scipy
 import ast
-import json
 
 import pandas as pd
 import streamlit as st
 from streamlit_echarts import st_echarts
 
 from gptfuc import industry_name_to_code, init_supabase
-from utils import (  # roformer_encoder; get_embedding,; get_csvdf,; get_rulefolder,
+from utils import (  # roformer_encoder; get_embedding,;
     df2aggrid,
+    get_csvdf,
+    get_rulefolder,
     split_words,
 )
+
+# import json
+
 
 supabase = init_supabase()
 
@@ -23,12 +27,12 @@ dtlpath = "rules/lawdtl0517.csv"
 orgpath = "rules/org1.csv"
 
 
-# def get_samplerule(key_list, industry_choice):
-#     rulefolder = get_rulefolder(industry_choice)
-#     plcdf = get_csvdf(rulefolder)
-#     selectdf = plcdf[plcdf["监管要求"].isin(key_list)]
-#     tb_sample = selectdf[["监管要求", "结构", "条款"]]
-#     return tb_sample.reset_index(drop=True)
+def get_samplerule(key_list, industry_choice):
+    rulefolder = get_rulefolder(industry_choice)
+    plcdf = get_csvdf(rulefolder)
+    selectdf = plcdf[plcdf["监管要求"].isin(key_list)]
+    tb_sample = selectdf[["监管要求", "结构", "条款"]]
+    return tb_sample.reset_index(drop=True)
 
 
 # def searchrule(text, column_text, make_choice, industry_choice, top):
@@ -68,7 +72,7 @@ orgpath = "rules/org1.csv"
 
 
 @st.cache_data
-def searchByName(search_text, industry_choice):
+def searchByNamesupa(search_text, industry_choice):
 
     table_name = industry_name_to_code(industry_choice)
 
@@ -89,19 +93,19 @@ def searchByName(search_text, industry_choice):
     return filtered_results, choicels
 
 
-# def searchByName(search_text, industry_choice):
-#     rulefolder = get_rulefolder(industry_choice)
-#     plcdf = get_csvdf(rulefolder)
-#     plc_list = plcdf["监管要求"].drop_duplicates().tolist()
+def searchByName(search_text, industry_choice):
+    rulefolder = get_rulefolder(industry_choice)
+    plcdf = get_csvdf(rulefolder)
+    plc_list = plcdf["监管要求"].drop_duplicates().tolist()
 
-#     choicels = []
-#     for plc in plc_list:
-#         if search_text in plc:
-#             choicels.append(plc)
+    choicels = []
+    for plc in plc_list:
+        if search_text in plc:
+            choicels.append(plc)
 
-#     plcsam = get_samplerule(choicels, industry_choice)
+    plcsam = get_samplerule(choicels, industry_choice)
 
-#     return plcsam, choicels
+    return plcsam, choicels
 
 
 def searchByItem(searchresult, make_choice, column_text, item_text):
@@ -347,3 +351,15 @@ def display_lawdetail(search_df):
     # display detail data
     st.markdown("法规详情:")
     st.table(dtldf)
+
+
+# @st.cache_data
+def searchByIndustrysupa(industry_choice):
+    table_name = industry_name_to_code(industry_choice)
+
+    metadata_name = table_name + "_metadata"
+    # Get all records from table and cast 'metadata' to text type
+    result = supabase.table(metadata_name).select("plc_value").execute()
+    # Convert JSON data to list
+    converted_list = [item["plc_value"] for item in result.data]
+    return converted_list

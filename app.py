@@ -1,12 +1,12 @@
 import pandas as pd
 import streamlit as st
 
-from checkrule import (  # searchrule,
+from checkrule import (  # searchrule,; get_lawdtlbyid,; searchByNamesupa,
     display_lawdetail,
-    get_lawdtlbyid,
     get_orglist,
     get_rulelist_byname,
     get_ruletree,
+    searchByIndustrysupa,
     searchByItem,
     searchByName,
 )
@@ -19,8 +19,7 @@ from gptfuc import (
     gpt_answer,
     similarity_search,
 )
-from utils import (  # keybert_keywords get_most_similar,
-    combine_df_columns,
+from utils import (  # keybert_keywords get_most_similar,; combine_df_columns,
     get_folder_list,
     get_section_list,
 )
@@ -80,19 +79,6 @@ def main():
             display_lawdetail(ruledf)
 
     else:
-        name_text = ""
-        searchresult, choicels = searchByName(name_text, industry_choice)
-
-        make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
-
-        if make_choice == []:
-            make_choice = choicels
-        section_list = get_section_list(searchresult, make_choice)
-        column_text = st.sidebar.multiselect("选择章节:", section_list)
-        if column_text == []:
-            column_text = ""
-        else:
-            column_text = "|".join(column_text)
 
         match = st.sidebar.radio("搜索方式", ("关键字搜索", "模糊搜索", "智能问答", "生成模型", "模型管理"))
         # initialize session value search_result
@@ -103,6 +89,21 @@ def main():
         placeholder = st.empty()
 
         if match == "关键字搜索":
+
+            name_text = ""
+            searchresult, choicels = searchByName(name_text, industry_choice)
+
+            make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
+
+            if make_choice == []:
+                make_choice = choicels
+            section_list = get_section_list(searchresult, make_choice)
+            column_text = st.sidebar.multiselect("选择章节:", section_list)
+            if column_text == []:
+                column_text = ""
+            else:
+                column_text = "|".join(column_text)
+
             item_text = st.sidebar.text_input("按条文关键字搜索")
             # radio to choose whether to use the new keywords
             # use_new_keywords = st.sidebar.radio('精确模式（+章节信息）', ('否', '是'))
@@ -111,7 +112,7 @@ def main():
                 fullresultdf, total = searchByItem(
                     searchresult, make_choice, column_text, item_text
                 )
-                new_keywords_list = item_text.split()
+                # new_keywords_list = item_text.split()
 
                 # if use_new_keywords == '是' and len(fullresultdf) > 0:
                 #     # proc_list = fullresultdf['条款'].tolist()
@@ -170,6 +171,10 @@ def main():
                 resultdf = st.session_state["search_result"]
 
         elif match == "模糊搜索":
+
+            choicels = searchByIndustrysupa(industry_choice)
+            make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
+
             search_text = st.sidebar.text_area("输入搜索条件")
             # radio to choose whether to use the new keywords
             # use_new_keywords = st.sidebar.radio('精确模式', ('否', '是'))
@@ -241,6 +246,20 @@ def main():
         elif match == "生成模型":
             st.subheader("生成模型")
 
+            name_text = ""
+            searchresult, choicels = searchByName(name_text, industry_choice)
+
+            make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
+
+            if make_choice == []:
+                make_choice = choicels
+            section_list = get_section_list(searchresult, make_choice)
+            column_text = st.sidebar.multiselect("选择章节:", section_list)
+            if column_text == []:
+                column_text = ""
+            else:
+                column_text = "|".join(column_text)
+
             fullresultdf, total = searchByItem(
                 searchresult, make_choice, column_text, ""
             )
@@ -268,6 +287,9 @@ def main():
         elif match == "智能问答":
             st.subheader("智能问答")
 
+            choicels = searchByIndustrysupa(industry_choice)
+            make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
+
             # input question
             question = st.text_area("输入问题")
 
@@ -277,13 +299,20 @@ def main():
                 "选择链条类型", ["stuff", "map_reduce", "refine", "map_rerank"]
             )  # button to search
             # choose model
-            model_name = st.selectbox("选择模型", ["gpt-3.5-turbo", "gpt-4"])
+            model_name = st.selectbox(
+                "选择模型", ["gpt-35-turbo", "gpt-35-turbo-16k", "gpt-4", "gpt-4-32k"]
+            )
             search = st.button("搜索")
             if search:
                 with st.spinner("正在搜索..."):
                     # search answer
                     answer, source = gpt_answer(
-                        question, chain_type, industry_choice, top, model_name
+                        question,
+                        chain_type,
+                        industry_choice,
+                        top,
+                        model_name,
+                        make_choice,
                     )
                     st.markdown("### 答案：")
                     st.write(answer)
@@ -293,8 +322,11 @@ def main():
         elif match == "模型管理":
             st.subheader("模型管理")
 
+            choicels = searchByIndustrysupa(industry_choice)
+            make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
+
             # delete model button
-            delete_model = st.button("删除模型")
+            delete_model = st.sidebar.button("删除模型")
             if delete_model:
                 with st.spinner("正在删除模型..."):
                     try:

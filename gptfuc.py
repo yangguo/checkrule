@@ -7,26 +7,28 @@ import openai
 # import chromadb
 # import faiss
 import pandas as pd
-import streamlit as st
+
+# import streamlit as st
 from dotenv import load_dotenv
 
 # from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
 from langchain.chains import RetrievalQA, VectorDBQA
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.chains.question_answering import load_qa_chain
-from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
+from langchain.chat_models import AzureChatOpenAI, ChatOpenAI, ErnieBotChat
 
 # from langchain.document_loaders import TextLoader
 from langchain.document_loaders import DirectoryLoader
 from langchain.embeddings import (
+    EmbaasEmbeddings,
     HuggingFaceEmbeddings,
     HuggingFaceHubEmbeddings,
     OpenAIEmbeddings,
-    EmbaasEmbeddings,
 )
 
 # from langchain.indexes import VectorstoreIndexCreator
-from langchain.llms import OpenAIChat
+from langchain.llms import Minimax, OpenAIChat
+from langchain.prompts import load_prompt
 from langchain.prompts.chat import (
     AIMessagePromptTemplate,
     ChatPromptTemplate,
@@ -47,7 +49,7 @@ from langchain.vectorstores import (
     Qdrant,
     SupabaseVectorStore,
 )
-from supabase import Client, create_client
+from supabase.client import Client, create_client
 
 # import pinecone
 
@@ -71,23 +73,24 @@ supabase_key = os.environ.get("SUPABASE_KEY")
 AZURE_BASE_URL = os.environ.get("AZURE_BASE_URL")
 AZURE_API_KEY = os.environ.get("AZURE_API_KEY")
 AZURE_DEPLOYMENT_NAME = os.environ.get("AZURE_DEPLOYMENT_NAME")
+AZURE_DEPLOYMENT_NAME_16K = os.environ.get("AZURE_DEPLOYMENT_NAME_16K")
+AZURE_DEPLOYMENT_NAME_GPT4 = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4")
+AZURE_DEPLOYMENT_NAME_GPT4_32K = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4_32K")
 
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 PINECONE_API_ENV = os.environ.get("PINECONE_API_ENV")
 
 HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 
-# model_name='shibing624/text2vec-base-chinese'
-# model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
-# model_name = "sentence-transformers/stsb-xlm-r-multilingual"
+model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 # embeddings =HuggingFaceEmbeddings(model_name=model_name)
 # embeddings = OpenAIEmbeddings()
 
-# embeddings = HuggingFaceHubEmbeddings(
-#     repo_id=model_name,
-#     task="feature-extraction",
-#     huggingfacehub_api_token=HF_API_TOKEN,
-# )
+embeddings = HuggingFaceHubEmbeddings(
+    repo_id=model_name,
+    task="feature-extraction",
+    huggingfacehub_api_token=HF_API_TOKEN,
+)
 # os.environ["OPENAI_API_TYPE"] = "azure"
 # os.environ["OPENAI_API_BASE"] = AZURE_BASE_URL
 # os.environ["OPENAI_API_KEY"] = AZURE_API_KEY
@@ -102,10 +105,10 @@ HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 #     openai_api_version="2023-05-15",
 # )
 
-embeddings = EmbaasEmbeddings(
-    model="paraphrase-multilingual-mpnet-base-v2",
-    instruction="",
-)
+# embeddings = EmbaasEmbeddings(
+#     model="paraphrase-multilingual-mpnet-base-v2",
+#     instruction="",
+# )
 
 # openai.api_base="https://tiny-shadow-5144.vixt.workers.dev/v1"
 # openai.api_base="https://super-heart-4116.vixt.workers.dev/v1"
@@ -113,39 +116,53 @@ embeddings = EmbaasEmbeddings(
 # openai.api_base = "https://op.139105.xyz/v1"
 
 
-llm = ChatOpenAI(model_name="gpt-3.5-turbo",
-                 openai_api_base="https://op.139105.xyz/v1",
-                 openai_api_key=api_key)
+# llm = ChatOpenAI(model_name="gpt-3.5-turbo",
+#                  openai_api_base="https://op.139105.xyz/v1",
+#                  openai_api_key=api_key)
 
-# llm = ChatOpenAI(model_name="gpt-3.5-turbo", 
+# llm = ChatOpenAI(model_name="gpt-3.5-turbo",
 #                  openai_api_base="https://az.139105.xyz/v1",
 #                  openai_api_key=AZURE_API_KEY)
 
+# llm = ErnieBotChat(ernie_client_id='', ernie_client_secret='')
 
-# embeddings = OpenAIEmbeddings()
+# llm = Minimax(minimax_api_key="", minimax_group_id="")
 
 # use azure model
-#     llm = AzureChatOpenAI(
+# llm = AzureChatOpenAI(
 #     openai_api_base=AZURE_BASE_URL,
-#     openai_api_version="2023-03-15-preview",
+#     openai_api_version="2023-07-01-preview",
 #     deployment_name=AZURE_DEPLOYMENT_NAME,
+#     # deployment_name=AZURE_DEPLOYMENT_NAME_16K,
+#     # deployment_name=AZURE_DEPLOYMENT_NAME_GPT4,
+#     # deployment_name=AZURE_DEPLOYMENT_NAME_GPT4_32K,
 #     openai_api_key=AZURE_API_KEY,
 #     openai_api_type = "azure",
 # )
+
+# convert gpt model name to azure deployment name
+gpt_to_deployment = {
+    "gpt-35-turbo": AZURE_DEPLOYMENT_NAME,
+    "gpt-35-turbo-16k": AZURE_DEPLOYMENT_NAME_16K,
+    "gpt-4": AZURE_DEPLOYMENT_NAME_GPT4,
+    "gpt-4-32k": AZURE_DEPLOYMENT_NAME_GPT4_32K,
+}
+
+# use azure llm based on model name
+def get_azurellm(model_name):
+    deployment_name = gpt_to_deployment[model_name]
+    llm = AzureChatOpenAI(
+        openai_api_base=AZURE_BASE_URL,
+        openai_api_version="2023-07-01-preview",
+        deployment_name=deployment_name,
+        openai_api_key=AZURE_API_KEY,
+        openai_api_type="azure",
+    )
+    return llm
+
+
 # use cohere model
 # llm = Cohere(model="command-xlarge-nightly",cohere_api_key=COHERE_API_KEY)
-
-
-uploadfolder = "uploads"
-filerawfolder = "fileraw"
-fileidxfolder = "ruleidx"
-backendurl = "http://localhost:8000"
-
-# openai_api_key = os.environ.get("OPENAI_API_KEY")
-# if openai_api_key is None:
-#     print("请设置OPENAI_API_KEY")
-# else:
-#     print("已设置OPENAI_API_KEY" + openai_api_key)
 
 
 # initialize pinecone
@@ -338,7 +355,12 @@ def add_ruleindex(df, industry=""):
 
 
 def gpt_answer(
-    question, chaintype="stuff", industry="", top_k=4, model_name="gpt-3.5-turbo"
+    question,
+    chaintype="stuff",
+    industry="",
+    top_k=4,
+    model_name="gpt-35-turbo",
+    items=[],
 ):
     collection_name = industry_name_to_code(industry)
     # get faiss client
@@ -383,22 +405,25 @@ def gpt_answer(
     prompt = ChatPromptTemplate.from_messages(messages)
 
     chain_type_kwargs = {"prompt": prompt}
-    # llm = ChatOpenAI(model_name=model_name, max_tokens=512)
-    # user azure model
-    #     llm = AzureChatOpenAI(
-    #     openai_api_base=AZURE_BASE_URL,
-    #     openai_api_version="2023-03-15-preview",
-    #     deployment_name=AZURE_DEPLOYMENT_NAME,
-    #     openai_api_key=AZURE_API_KEY,
-    #     openai_api_type = "azure",
-    # )
-    # chain = VectorDBQA.from_chain_type(
-    retriever = store.as_retriever(search_kwargs={"k": top_k})
-    # retriever = store.as_retriever(search_type="mmr",search_kwargs={"k": top_k})
 
+    # chat_template = load_prompt("prompt.json")
+    # print(chat_template)
+    # json_str=prompt.to_json()
+    # print(json_str)
+    # with open("prompt1.json", "w") as outfile:
+    #     json.dump(json_str, outfile)
+
+    # filter_value = {"监管要求": "信息技术管理办法"}
+
+    filter = convert_list_to_dict(items)
+    # retriever = store.as_retriever(search_kwargs={"k": top_k})
+    retriever = store.as_retriever(
+        search_type="similarity", search_kwargs={"k": top_k, "filter": filter}
+    )
 
     chain = RetrievalQA.from_chain_type(
-        llm,
+        # llm,
+        get_azurellm(model_name),
         chain_type=chaintype,
         # vectorstore=store,
         retriever=retriever,
@@ -469,31 +494,13 @@ def similarity_search(question, topk=4, industry="", items=[]):
 
     # print(collections)
 
-    filter_value = {"监管要求": "商业银行信息科技风险管理指引"}
+    # filter_value = {"监管要求": "信息技术管理办法"}
 
-    # filter = convert_list_to_dict(items)
-    # print(filter)
+    filter = convert_list_to_dict(items)
+    print(filter)
 
-    # Convert dict to JSON
-    filter_json = json.dumps(filter_value)
-
-    # Filter by '监管要求' in metadata field
-    filterdata = (
-        supabase.table(collection_name)
-        .select("content,metadata")
-        .filter("metadata", "cs", filter_json)
-        .execute()
-    )
-
-    # load json
-    data_json = json.loads(filterdata.json())
-
-    # filter=filter_value
-    print(store.table_name)
-    print(topk)
-    print(question)
-    docs = store.similarity_search(query=question, k=topk)
-    # retriever = store.as_retriever(search_type="mmr",search_kwargs={"k": topk})
+    docs = store.similarity_search(query=question, k=topk, filter=filter)
+    # retriever = store.as_retriever(search_type="similarity",search_kwargs={ "k":topk ,"filter":filter})
     # docs = retriever.get_relevant_documents(question)
     df = docs_to_df(docs)
     return df
@@ -561,4 +568,5 @@ def convert_list_to_dict(lst):
     if len(lst) == 1:
         return {"监管要求": lst[0]}
     else:
-        return {"监管要求": {"$in": [item for item in lst]}}
+        return {}
+        # return {"监管要求": {"$in": [item for item in lst]}}
