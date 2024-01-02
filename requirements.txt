@@ -115,3 +115,5 @@ chromadb
 pinecone-client
 openai
 supabase
+python-dotenv
+tiktoken

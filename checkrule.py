@@ -1,20 +1,12 @@
-# import scipy
-import ast
-
 import pandas as pd
 import streamlit as st
-from streamlit_echarts import st_echarts
 
 from gptfuc import industry_name_to_code, init_supabase
-from utils import (  # roformer_encoder; get_embedding,;
-    df2aggrid,
+from utils import (  # roformer_encoder; get_embedding,;; df2aggrid,
     get_csvdf,
     get_rulefolder,
     split_words,
 )
-
-# import json
-
 
 supabase = init_supabase()
 
@@ -129,56 +121,56 @@ def fix_section_text(section_text):
     return section_text
 
 
-def df2echart(df):
-    data = dict()
-    data["name"] = "法规分类"
-    df["children"] = df["children"].str.replace("id", "value")
-    # fillna(0)是为了防止出现nan
-    df["children"] = df["children"].fillna("[]")
-    # literal_eval 将字符串转换为字典 ignore 忽略掉异常
-    df["children"] = df["children"].apply(ast.literal_eval)
-    data["children"] = df.iloc[:3]["children"].tolist()
-    # st.write(data)
-    option = {
-        "tooltip": {"trigger": "item", "triggerOn": "mousemove"},
-        "series": [
-            {
-                "type": "tree",
-                "data": [data],
-                # "top": "1%",
-                # "left": "7%",
-                # "bottom": "1%",
-                # "right": "20%",
-                # "symbolSize": 7,
-                "label": {
-                    "position": "left",
-                    "verticalAlign": "middle",
-                    "align": "right",
-                    # "fontSize": 9,
-                },
-                "leaves": {
-                    "label": {
-                        "position": "right",
-                        "verticalAlign": "middle",
-                        # "align": "left",
-                    }
-                },
-                # "emphasis": {
-                #     "focus": "descendant"
-                # },
-                # "expandAndCollapse": True,
-                # "animationDuration": 550,
-                # "animationDurationUpdate": 750,
-            }
-        ],
-    }
-    events = {
-        "click": "function(params) { console.log(params.name); return [params.name,params.value]  }",
-        # "dblclick":"function(params) { return [params.type, params.name, params.value] }"
-    }
+# def df2echart(df):
+#     data = dict()
+#     data["name"] = "法规分类"
+#     df["children"] = df["children"].str.replace("id", "value")
+#     # fillna(0)是为了防止出现nan
+#     df["children"] = df["children"].fillna("[]")
+#     # literal_eval 将字符串转换为字典 ignore 忽略掉异常
+#     df["children"] = df["children"].apply(ast.literal_eval)
+#     data["children"] = df.iloc[:3]["children"].tolist()
+#     # st.write(data)
+#     option = {
+#         "tooltip": {"trigger": "item", "triggerOn": "mousemove"},
+#         "series": [
+#             {
+#                 "type": "tree",
+#                 "data": [data],
+#                 # "top": "1%",
+#                 # "left": "7%",
+#                 # "bottom": "1%",
+#                 # "right": "20%",
+#                 # "symbolSize": 7,
+#                 "label": {
+#                     "position": "left",
+#                     "verticalAlign": "middle",
+#                     "align": "right",
+#                     # "fontSize": 9,
+#                 },
+#                 "leaves": {
+#                     "label": {
+#                         "position": "right",
+#                         "verticalAlign": "middle",
+#                         # "align": "left",
+#                     }
+#                 },
+#                 # "emphasis": {
+#                 #     "focus": "descendant"
+#                 # },
+#                 # "expandAndCollapse": True,
+#                 # "animationDuration": 550,
+#                 # "animationDurationUpdate": 750,
+#             }
+#         ],
+#     }
+#     events = {
+#         "click": "function(params) { console.log(params.name); return [params.name,params.value]  }",
+#         # "dblclick":"function(params) { return [params.type, params.name, params.value] }"
+#     }
 
-    value = st_echarts(option, height="500px", events=events)
-    return value
+#     value = st_echarts(option, height="500px", events=events)
+#     return value
 
 
 def get_children(df, ids):
@@ -269,28 +261,28 @@ def get_rulelist_byname(name, fileno, org, startdate, enddate):
     return searchresult
 
 
-def get_ruletree():
-    secdf = pd.read_csv(secpath)
-    selected = df2echart(secdf)
-    # selected is None
-    if selected is None:
-        st.error("请选择一个法规分类")
-        return
+# def get_ruletree():
+#     secdf = pd.read_csv(secpath)
+#     selected = df2echart(secdf)
+#     # selected is None
+#     if selected is None:
+#         st.error("请选择一个法规分类")
+#         return
 
-    if selected is not None:
-        [name, ids] = selected
-        idls = get_allchildren(secdf, ids)
-        # st.write(idls)
-        plclsdf = get_rulelist(idls)
-        # get total
-        total = len(plclsdf)
-        # display name,ids and total
-        st.info("{} id: {} 总数: {}".format(name, ids, total))
-        # st.table(plclsdf)
-        # fillna
-        # plclsdf=plclsdf.fillna('')
-        # display lawdetail
-        display_lawdetail(plclsdf)
+#     if selected is not None:
+#         [name, ids] = selected
+#         idls = get_allchildren(secdf, ids)
+#         # st.write(idls)
+#         plclsdf = get_rulelist(idls)
+#         # get total
+#         total = len(plclsdf)
+#         # display name,ids and total
+#         st.info("{} id: {} 总数: {}".format(name, ids, total))
+#         # st.table(plclsdf)
+#         # fillna
+#         # plclsdf=plclsdf.fillna('')
+#         # display lawdetail
+#         display_lawdetail(plclsdf)
 
 
 def get_lawdtlbyid(ids):
@@ -323,34 +315,34 @@ def get_lawdtlbyid(ids):
 
 
 # display event detail
-def display_lawdetail(search_df):
+# def display_lawdetail(search_df):
 
-    data = df2aggrid(search_df)
-    # display data
-    selected_rows = data["selected_rows"]
-    if selected_rows == []:
-        st.error("请先选择查看详情")
-        st.stop()
+#     data = df2aggrid(search_df)
+#     # display data
+#     selected_rows = data["selected_rows"]
+#     if selected_rows == []:
+#         st.error("请先选择查看详情")
+#         st.stop()
 
-    # display selected rows
-    st.markdown("选择法规:")
-    # convert selected rows to dataframe
-    selected_df = pd.DataFrame(selected_rows)
-    # st.table(selected_df)
-    # get id
-    idls = selected_df["lawid"].tolist()
-    # hide column id
-    selected_df = selected_df.drop(columns=["lawid", "id"])
-    # display selected rows
-    st.table(selected_df)
-    # st.write(idls)
-    metadf, dtldf = get_lawdtlbyid(idls)
-    # display meta data
-    st.markdown("法规元数据:")
-    st.table(metadf)
-    # display detail data
-    st.markdown("法规详情:")
-    st.table(dtldf)
+#     # display selected rows
+#     st.markdown("选择法规:")
+#     # convert selected rows to dataframe
+#     selected_df = pd.DataFrame(selected_rows)
+#     # st.table(selected_df)
+#     # get id
+#     idls = selected_df["lawid"].tolist()
+#     # hide column id
+#     selected_df = selected_df.drop(columns=["lawid", "id"])
+#     # display selected rows
+#     st.table(selected_df)
+#     # st.write(idls)
+#     metadf, dtldf = get_lawdtlbyid(idls)
+#     # display meta data
+#     st.markdown("法规元数据:")
+#     st.table(metadf)
+#     # display detail data
+#     st.markdown("法规详情:")
+#     st.table(dtldf)
 
 
 # @st.cache_data
