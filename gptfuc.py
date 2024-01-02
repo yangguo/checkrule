@@ -1,8 +1,7 @@
 # from langchain.llms import OpenAI
 import json
 import os
-
-import openai
+from operator import itemgetter
 
 # import chromadb
 # import faiss
@@ -10,45 +9,19 @@ import pandas as pd
 
 # import streamlit as st
 from dotenv import load_dotenv
-
-# from gpt_index import GPTSimpleVectorIndex, LLMPredictor, SimpleDirectoryReader
-from langchain.chains import RetrievalQA, VectorDBQA
-from langchain.chains.qa_with_sources import load_qa_with_sources_chain
-from langchain.chains.question_answering import load_qa_chain
-from langchain.chat_models import AzureChatOpenAI, ChatOpenAI, ErnieBotChat
-
-# from langchain.document_loaders import TextLoader
-from langchain.document_loaders import DirectoryLoader
-from langchain.embeddings import (
-    EmbaasEmbeddings,
-    HuggingFaceEmbeddings,
-    HuggingFaceHubEmbeddings,
-    OpenAIEmbeddings,
-)
-
-# from langchain.indexes import VectorstoreIndexCreator
-from langchain.llms import Minimax, OpenAIChat
-from langchain.prompts import load_prompt
-from langchain.prompts.chat import (
-    AIMessagePromptTemplate,
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
-)
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
-from langchain.text_splitter import (
-    CharacterTextSplitter,
-    RecursiveCharacterTextSplitter,
-)
-from langchain.vectorstores import (
-    FAISS,
-    Chroma,
-    Milvus,
-    OpenSearchVectorSearch,
-    Pinecone,
-    Qdrant,
+from langchain import hub
+from langchain.chains.query_constructor.base import AttributeInfo
+from langchain.chat_models import AzureChatOpenAI
+from langchain.embeddings import AzureOpenAIEmbeddings
+from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
+from langchain.retrievers.document_compressors import LLMChainExtractor, LLMChainFilter
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain.retrievers.self_query.base import SelfQueryRetriever
+from langchain.schema import StrOutputParser
+from langchain.vectorstores import (  # FAISS,; Chroma,; Milvus,; OpenSearchVectorSearch,; Pinecone,; Qdrant,
     SupabaseVectorStore,
 )
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from supabase.client import Client, create_client
 
 # import pinecone
@@ -76,21 +49,30 @@ AZURE_DEPLOYMENT_NAME = os.environ.get("AZURE_DEPLOYMENT_NAME")
 AZURE_DEPLOYMENT_NAME_16K = os.environ.get("AZURE_DEPLOYMENT_NAME_16K")
 AZURE_DEPLOYMENT_NAME_GPT4 = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4")
 AZURE_DEPLOYMENT_NAME_GPT4_32K = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4_32K")
+AZURE_DEPLOYMENT_NAME_EMBEDDING = os.environ.get("AZURE_DEPLOYMENT_NAME_EMBEDDING")
 
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 PINECONE_API_ENV = os.environ.get("PINECONE_API_ENV")
 
 HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 
-model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+# model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 # embeddings =HuggingFaceEmbeddings(model_name=model_name)
 # embeddings = OpenAIEmbeddings()
 
-embeddings = HuggingFaceHubEmbeddings(
-    repo_id=model_name,
-    task="feature-extraction",
-    huggingfacehub_api_token=HF_API_TOKEN,
+# embeddings = HuggingFaceHubEmbeddings(
+#     repo_id=model_name,
+#     task="feature-extraction",
+#     huggingfacehub_api_token=HF_API_TOKEN,
+# )
+
+embeddings = AzureOpenAIEmbeddings(
+    azure_endpoint=AZURE_BASE_URL,
+    azure_deployment=AZURE_DEPLOYMENT_NAME_EMBEDDING,
+    openai_api_version="2023-08-01-preview",
+    openai_api_key=AZURE_API_KEY,
 )
+
 # os.environ["OPENAI_API_TYPE"] = "azure"
 # os.environ["OPENAI_API_BASE"] = AZURE_BASE_URL
 # os.environ["OPENAI_API_KEY"] = AZURE_API_KEY
@@ -152,11 +134,12 @@ gpt_to_deployment = {
 def get_azurellm(model_name):
     deployment_name = gpt_to_deployment[model_name]
     llm = AzureChatOpenAI(
-        openai_api_base=AZURE_BASE_URL,
-        openai_api_version="2023-07-01-preview",
-        deployment_name=deployment_name,
+        azure_endpoint=AZURE_BASE_URL,
+        openai_api_version="2023-12-01-preview",
+        azure_deployment=deployment_name,
         openai_api_key=AZURE_API_KEY,
-        openai_api_type="azure",
+        temperature=0.0,
+        streaming=True,
     )
     return llm
 
@@ -361,6 +344,7 @@ def gpt_answer(
     top_k=4,
     model_name="gpt-35-turbo",
     items=[],
+    # memory=StreamlitChatMessageHistory(),
 ):
     collection_name = industry_name_to_code(industry)
     # get faiss client
@@ -394,53 +378,124 @@ def gpt_answer(
         embedding=embeddings,
     )
 
-    system_template = """Use the following pieces of context to answer the users question. 
-    If you don't know the answer, just say that you don't know, don't try to make up an answer.
-    ----------------
-    {context}"""
-    messages = [
-        SystemMessagePromptTemplate.from_template(system_template),
-        HumanMessagePromptTemplate.from_template("{question}"),
-    ]
-    prompt = ChatPromptTemplate.from_messages(messages)
+    # system_template = """Use the following pieces of context to answer the users question.
+    # If you don't know the answer, just say that you don't know, don't try to make up an answer.
+    # ----------------
+    # {context}"""
+    # messages = [
+    #     SystemMessagePromptTemplate.from_template(system_template),
+    #     HumanMessagePromptTemplate.from_template("{question}"),
+    # ]
+    # prompt = ChatPromptTemplate.from_messages(messages)
+
+    prompt = hub.pull("vyang/gpt_answer")
 
     chain_type_kwargs = {"prompt": prompt}
 
-    # chat_template = load_prompt("prompt.json")
-    # print(chat_template)
-    # json_str=prompt.to_json()
-    # print(json_str)
-    # with open("prompt1.json", "w") as outfile:
-    #     json.dump(json_str, outfile)
-
     # filter_value = {"监管要求": "信息技术管理办法"}
-
+    llm = get_azurellm(model_name)
     filter = convert_list_to_dict(items)
     # retriever = store.as_retriever(search_kwargs={"k": top_k})
     retriever = store.as_retriever(
         search_type="similarity", search_kwargs={"k": top_k, "filter": filter}
     )
 
-    chain = RetrievalQA.from_chain_type(
-        # llm,
-        get_azurellm(model_name),
-        chain_type=chaintype,
-        # vectorstore=store,
-        retriever=retriever,
-        # k=top_k,
-        return_source_documents=True,
-        chain_type_kwargs=chain_type_kwargs,
+    retriever_from_llm = MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
+
+    compressor = LLMChainExtractor.from_llm(llm)
+
+    _filter = LLMChainFilter.from_llm(llm)
+
+    compression_retriever = ContextualCompressionRetriever(
+        base_compressor=compressor, base_retriever=retriever_from_llm
     )
-    result = chain({"query": question})
+
+    metadata_field_info = [
+        AttributeInfo(
+            name="结构",
+            description="the chapter in which the regulatory provisions are located",
+            type="string",
+        ),
+        AttributeInfo(
+            name="监管要求",
+            description="the name of the regulatory policy",
+            type="string",
+        ),
+    ]
+    document_content_description = "Contents of regulatory provisions"
+
+    selfquery_retriever = SelfQueryRetriever.from_llm(
+        llm,
+        store,
+        document_content_description,
+        metadata_field_info,
+        verbose=True,
+    )
+
+    # initialize the ensemble retriever
+    ensemble_retriever = EnsembleRetriever(
+        retrievers=[retriever_from_llm, selfquery_retriever], weights=[0.5, 0.5]
+    )
+    # chain = RetrievalQA.from_chain_type(
+    #     llm,
+    #     chain_type=chaintype,
+    #     # vectorstore=store,
+    #     retriever=retriever,
+    #     # k=top_k,
+    #     return_source_documents=True,
+    #     chain_type_kwargs=chain_type_kwargs,
+    #     memory=memory,
+    # )
+    # qa_chain = load_qa_chain(llm, chain_type=chaintype)
+    # qa = RetrievalQA(combine_documents_chain=qa_chain, retriever=retriever)
+
+    # result = chain({"query": question})
+    # result = qa({"query": question}, return_only_outputs=True)
 
     # docs = store.similarity_search(question)
     # qa_chain=load_qa_with_sources_chain(llm,chain_type=chaintype)
     # qa_chain=load_qa_chain(llm,chain_type=chaintype)
     # result = qa_chain({"input_documents": docs, "question": question}, return_only_outputs=True)
 
-    answer = result["result"]
+    # retrieved_docs = retriever.get_relevant_documents(question)
+    # print(retrieved_docs)
+
+    def format_docs(docs):
+        return "\n\n".join(doc.page_content for doc in docs)
+
+    output_parser = StrOutputParser()
+    # rag_chain = (
+    #     {"context": retriever_from_llm | format_docs, "question": RunnablePassthrough()}
+    #     | prompt
+    #     | llm
+    #     | output_parser
+    # )
+
+    rag_chain_from_docs = (
+        {
+            "context": lambda input: format_docs(input["documents"]),
+            "question": itemgetter("question"),
+        }
+        | prompt
+        | llm
+        | output_parser
+    )
+
+    rag_chain_with_source = RunnableParallel(
+        {"documents": retriever_from_llm, "question": RunnablePassthrough()}
+    ) | {
+        # "contents": lambda input: [doc.page_content for doc in input["documents"]],
+        "documents": lambda input: [doc for doc in input["documents"]],
+        "answer": rag_chain_from_docs,
+    }
+
+    result = rag_chain_with_source.invoke(question)
+
+    print(result)
+
+    answer = result["answer"]
     # sourcedf=None
-    source = result["source_documents"]
+    source = result["documents"]
     sourcedf = docs_to_df(source)
     return answer, sourcedf
 
