@@ -63,7 +63,7 @@ def get_samplerule(key_list, industry_choice):
 #     return fixruledf.iloc[idxlist]
 
 
-@st.cache_data
+# @st.cache_data
 def searchByNamesupa(search_text, industry_choice):
 
     table_name = industry_name_to_code(industry_choice)
@@ -351,7 +351,14 @@ def searchByIndustrysupa(industry_choice):
 
     metadata_name = table_name + "_metadata"
     # Get all records from table and cast 'metadata' to text type
-    result = supabase.table(metadata_name).select("plc_value").execute()
+    try:
+        result = supabase.table(metadata_name).select("plc_value").execute()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        result = None
     # Convert JSON data to list
-    converted_list = [item["plc_value"] for item in result.data]
-    return converted_list
+    if result is None:
+        return []
+    else:
+        converted_list = [item["plc_value"] for item in result.data]
+        return converted_list
