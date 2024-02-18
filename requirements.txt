@@ -117,3 +117,6 @@ openai
 supabase
 python-dotenv
 tiktoken
+dashscope
+qianfan 
+langchain-google-genai

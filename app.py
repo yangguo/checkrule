@@ -287,21 +287,45 @@ def main():
         question = st.text_area("输入问题")
 
         top = st.slider("匹配数量选择", min_value=1, max_value=10, value=4)
-        # choose chain type
-        chain_type = st.selectbox(
-            "选择链条类型", ["stuff", "map_reduce", "refine", "map_rerank"]
-        )  # button to search
         # choose model
         model_name = st.selectbox(
-            "选择模型", ["gpt-35-turbo", "gpt-35-turbo-16k", "gpt-4", "gpt-4-32k"]
+            "选择模型",
+            [
+                "mistral",
+                "qwen:7b",
+                "gpt-35-turbo",
+                "gpt-35-turbo-16k",
+                "gpt-4",
+                "gpt-4-32k",
+                "gpt-4-turbo",
+                "qwen-turbo",
+                "qwen-plus",
+                "qwen-max",
+                "chatglm-6b-v2",
+                "chatglm3-6b",
+                "baichuan2-13b-chat-v1",
+                "ERNIE-Bot-4",
+                "ERNIE-Bot-turbo",
+                "ChatGLM2-6B-32K",
+                "Yi-34B-Chat",
+                "Mixtral-8x7B-Instruct",
+                "gemini-pro",
+                "Baichuan2-Turbo",
+                "Baichuan2-Turbo-192K",
+                "Baichuan2-53B",
+            ],
         )
+        rag_type = st.sidebar.selectbox(
+            "选择RAG类型", ["similarity", "mmr", "multiquery", "rerank"]
+        )
+        # button to search
         search = st.button("搜索")
         if search:
             with st.spinner("正在搜索..."):
                 # search answer
                 answer, source = gpt_answer(
                     question,
-                    chain_type,
+                    rag_type,
                     industry_choice,
                     top,
                     model_name,
@@ -319,13 +343,49 @@ def main():
         make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
 
         top = st.sidebar.slider("匹配数量选择", min_value=1, max_value=10, value=4)
-        # choose chain type
-        chain_type = st.sidebar.selectbox(
-            "选择链条类型", ["stuff", "map_reduce", "refine", "map_rerank"]
-        )  # button to search
         # choose model
         model_name = st.sidebar.selectbox(
-            "选择模型", ["gpt-35-turbo", "gpt-35-turbo-16k", "gpt-4", "gpt-4-32k"]
+            "选择模型",
+            [
+                "mistral",
+                "qwen:7b",
+                "gpt-35-turbo",
+                "gpt-35-turbo-16k",
+                "gpt-4",
+                "gpt-4-32k",
+                "gpt-4-turbo",
+                "qwen-turbo",
+                "qwen-plus",
+                "qwen-max",
+                # "chatglm-6b-v2",
+                # "chatglm3-6b",
+                # "baichuan2-13b-chat-v1",
+                "ERNIE-Bot-4",
+                "ERNIE-Bot-turbo",
+                "ChatGLM2-6B-32K",
+                "Yi-34B-Chat",
+                "Mixtral-8x7B-Instruct",
+                "gemini-pro",
+                "Baichuan2-Turbo",
+                "Baichuan2-Turbo-192K",
+                "Baichuan2-53B",
+                "moonshot-v1-8k",
+                "moonshot-v1-32k",
+                "moonshot-v1-128k",
+                "glm-3-turbo",
+                "glm-4",
+            ],
+        )
+        # choose retrieval type
+        retriever_type = st.sidebar.selectbox(
+            "选择检索类型", ["similarity", "mmr", "multiquery", "rerank"]
+        )
+        # choose fusion type yes or no,default is no
+        fusion_type = st.sidebar.checkbox("是否融合检索结果", value=False)
+
+        # choose rag type
+        rag_type = st.sidebar.selectbox(
+            "选择RAG类型", ["basic", "stepback", "hyde", "decomposition"]
         )
 
         # Initialize chat history
@@ -349,30 +409,25 @@ def main():
 
             response, source = gpt_answer(
                 prompt,
-                chain_type,
                 industry_choice,
                 top,
                 model_name,
                 make_choice,
+                retriever_type,
+                fusion_type,
+                rag_type
                 # memory,
             )
             # Display assistant response in chat message container
             with st.chat_message("assistant"):
-                # message_placeholder = st.empty()
-                # full_response = ""
-                # # Simulate stream of response with milliseconds delay
-                # for chunk in response.split():
-                #     full_response += chunk + " "
-                #     time.sleep(0.05)
-                #     # Add a blinking cursor to simulate typing
-                #     message_placeholder.markdown(full_response + "▌")
-                # message_placeholder.markdown(full_response)
 
-                st.markdown(response)
+                # st.markdown(response)
+                # outstr = response
+                outstr = st.write_stream(response)
                 with st.expander("来源："):
                     st.table(source)
             # Add assistant response to chat history
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state.messages.append({"role": "assistant", "content": outstr})
 
     elif match == "模型管理":
         st.subheader("模型管理")

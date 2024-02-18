@@ -1,7 +1,10 @@
 # from langchain.llms import OpenAI
 import json
 import os
+import time
 from operator import itemgetter
+
+import jwt
 
 # import chromadb
 # import faiss
@@ -11,21 +14,38 @@ import pandas as pd
 from dotenv import load_dotenv
 from langchain import hub
 from langchain.chains.query_constructor.base import AttributeInfo
-from langchain.chat_models import AzureChatOpenAI
-from langchain.embeddings import AzureOpenAIEmbeddings
+from langchain.prompts import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
+)
 from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
-from langchain.retrievers.document_compressors import LLMChainExtractor, LLMChainFilter
+from langchain.retrievers.document_compressors import (
+    CohereRerank,
+    LLMChainExtractor,
+    LLMChainFilter,
+)
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.retrievers.self_query.base import SelfQueryRetriever
 from langchain.schema import StrOutputParser
-from langchain.vectorstores import (  # FAISS,; Chroma,; Milvus,; OpenSearchVectorSearch,; Pinecone,; Qdrant,
+from langchain_community.chat_models import (
+    ChatBaichuan,
+    ChatOllama,
+    QianfanChatEndpoint,
+)
+from langchain_community.chat_models.tongyi import ChatTongyi
+from langchain_community.vectorstores import (  # FAISS,; Chroma,; Milvus,; OpenSearchVectorSearch,; Pinecone,; Qdrant,
+    Neo4jVector,
     SupabaseVectorStore,
 )
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+from langchain_core.runnables import (
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
+)
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings, ChatOpenAI
 from supabase.client import Client, create_client
-
-# import pinecone
-
 
 load_dotenv()
 
@@ -49,12 +69,21 @@ AZURE_DEPLOYMENT_NAME = os.environ.get("AZURE_DEPLOYMENT_NAME")
 AZURE_DEPLOYMENT_NAME_16K = os.environ.get("AZURE_DEPLOYMENT_NAME_16K")
 AZURE_DEPLOYMENT_NAME_GPT4 = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4")
 AZURE_DEPLOYMENT_NAME_GPT4_32K = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4_32K")
+AZURE_DEPLOYMENT_NAME_GPT4_TURBO = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4_TURBO")
 AZURE_DEPLOYMENT_NAME_EMBEDDING = os.environ.get("AZURE_DEPLOYMENT_NAME_EMBEDDING")
 
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 PINECONE_API_ENV = os.environ.get("PINECONE_API_ENV")
 
 HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
+
+NEO4J_URI = os.environ.get("NEO4J_URI")
+NEO4J_USERNAME = os.environ.get("NEO4J_USERNAME")
+NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD")
+
+BAICHUAN_API_KEY = os.environ.get("BAICHUAN_API_KEY")
+MOONSHOT_API_KEY = os.environ.get("MOONSHOT_API_KEY")
+ZHIPUAI_API_KEY = os.environ.get("ZHIPUAI_API_KEY")
 
 # model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 # embeddings =HuggingFaceEmbeddings(model_name=model_name)
@@ -128,7 +157,93 @@ gpt_to_deployment = {
     "gpt-35-turbo-16k": AZURE_DEPLOYMENT_NAME_16K,
     "gpt-4": AZURE_DEPLOYMENT_NAME_GPT4,
     "gpt-4-32k": AZURE_DEPLOYMENT_NAME_GPT4_32K,
+    "gpt-4-turbo": AZURE_DEPLOYMENT_NAME_GPT4_TURBO,
 }
+
+
+def generate_token(apikey: str, exp_seconds: int):
+    try:
+        id, secret = apikey.split(".")
+    except Exception as e:
+        raise Exception("invalid apikey", e)
+
+    payload = {
+        "api_key": id,
+        "exp": int(round(time.time() * 1000)) + exp_seconds * 1000,
+        "timestamp": int(round(time.time() * 1000)),
+    }
+
+    return jwt.encode(
+        payload,
+        secret,
+        algorithm="HS256",
+        headers={"alg": "HS256", "sign_type": "SIGN"},
+    )
+
+
+# choose chatllm base on model name
+def get_chatllm(model_name):
+    if (
+        model_name == "qwen-turbo"
+        or model_name == "qwen-plus"
+        or model_name == "qwen-max"
+        or model_name == "chatglm-6b-v2"
+        or model_name == "chatglm3-6b"
+        or model_name == "baichuan2-13b-chat-v1"
+    ):
+        llm = ChatTongyi(
+            # streaming=True,
+            model_name=model_name,
+        )
+    elif (
+        model_name == "ERNIE-Bot-4"
+        or model_name == "ERNIE-Bot-turbo"
+        or model_name == "ChatGLM2-6B-32K"
+        or model_name == "Yi-34B-Chat"
+        or model_name == "Mixtral-8x7B-Instruct"
+    ):
+        llm = QianfanChatEndpoint(
+            model=model_name,
+            # streaming=True,
+        )
+    elif model_name == "gemini-pro":
+        llm = ChatGoogleGenerativeAI(
+            model=model_name, convert_system_message_to_human=True
+        )
+    elif model_name == "mistral" or model_name == "qwen:7b":
+        llm = ChatOllama(
+            model=model_name,
+        )
+    elif (
+        model_name == "Baichuan2-Turbo"
+        or model_name == "Baichuan2-Turbo-192k"
+        or model_name == "Baichuan2-53B"
+    ):
+        llm = ChatOpenAI(
+            model=model_name,
+            api_key=BAICHUAN_API_KEY,
+            base_url="https://api.baichuan-ai.com/v1",
+        )
+    elif (
+        model_name == "moonshot-v1-8k"
+        or model_name == "moonshot-v1-32k"
+        or model_name == "moonshot-v1-128k"
+    ):
+        llm = ChatOpenAI(
+            model=model_name,
+            api_key=MOONSHOT_API_KEY,
+            base_url="https://api.moonshot.cn/v1",
+        )
+    elif model_name == "glm-3-turbo" or model_name == "glm-4":
+        llm = ChatOpenAI(
+            model=model_name,
+            base_url="https://open.bigmodel.cn/api/paas/v4",
+            api_key=generate_token(ZHIPUAI_API_KEY, 3600),
+        )
+    else:
+        llm = get_azurellm(model_name)
+    return llm
+
 
 # use azure llm based on model name
 def get_azurellm(model_name):
@@ -139,7 +254,7 @@ def get_azurellm(model_name):
         azure_deployment=deployment_name,
         openai_api_key=AZURE_API_KEY,
         temperature=0.0,
-        streaming=True,
+        # streaming=True,
     )
     return llm
 
@@ -233,13 +348,26 @@ def build_ruleindex(df, industry=""):
 
     # use supabase
     # Create vector store from documents and save to supabase
-    SupabaseVectorStore.from_texts(
+    # SupabaseVectorStore.from_texts(
+    #     docs,
+    #     embeddings,
+    #     metadatas=metadata,
+    #     client=supabase,
+    #     table_name=collection_name,
+    #     query_name="match_" + collection_name,
+    # )
+
+    # use neo4j
+    Neo4jVector.from_texts(
         docs,
         embeddings,
         metadatas=metadata,
-        client=supabase,
-        table_name=collection_name,
-        query_name="match_" + collection_name,
+        url=NEO4J_URI,
+        username=NEO4J_USERNAME,
+        password=NEO4J_PASSWORD,
+        index_name=collection_name,
+        keyword_index_name=collection_name + "keyword",
+        search_type="hybrid",
     )
 
     # use milvus
@@ -339,11 +467,13 @@ def add_ruleindex(df, industry=""):
 
 def gpt_answer(
     question,
-    chaintype="stuff",
     industry="",
     top_k=4,
     model_name="gpt-35-turbo",
     items=[],
+    retriever_type="",
+    fusion_type=False,
+    rag_type="basic",
     # memory=StreamlitChatMessageHistory(),
 ):
     collection_name = industry_name_to_code(industry)
@@ -378,99 +508,93 @@ def gpt_answer(
         embedding=embeddings,
     )
 
-    # system_template = """Use the following pieces of context to answer the users question.
-    # If you don't know the answer, just say that you don't know, don't try to make up an answer.
-    # ----------------
-    # {context}"""
-    # messages = [
-    #     SystemMessagePromptTemplate.from_template(system_template),
-    #     HumanMessagePromptTemplate.from_template("{question}"),
+    #     store = Neo4jVector.from_existing_index(
+    #     embedding=embeddings,
+    #     url=NEO4J_URI,
+    #     username=NEO4J_USERNAME,
+    #     password=NEO4J_PASSWORD,
+    #     index_name=collection_name,
+    #     keyword_index_name=collection_name+"keyword",
+    #     search_type="hybrid",
+    # )
+
+    # filter_value = {"监管要求": "信息技术管理办法"}
+    llm = get_chatllm(model_name)
+    filter = convert_list_to_dict(items)
+
+    base_retriever = store.as_retriever(
+        search_type="similarity", search_kwargs={"k": top_k, "filter": filter}
+    )
+    if retriever_type == "similarity":
+        retriever = base_retriever
+    elif retriever_type == "mmr":
+        retriever = store.as_retriever(
+            search_type="mmr"  # , search_kwargs={"k": top_k, "filter": filter}
+        )
+    elif retriever_type == "multiquery":
+        retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
+    elif retriever_type == "rerank":
+        compressor = CohereRerank(model="rerank-multilingual-v2.0")
+        retriever = ContextualCompressionRetriever(
+            base_compressor=compressor, base_retriever=base_retriever
+        )
+
+    # compressor = LLMChainExtractor.from_llm(llm)
+
+    # _filter = LLMChainFilter.from_llm(llm)
+
+    # metadata_field_info = [
+    #     AttributeInfo(
+    #         name="结构",
+    #         description="the chapter in which the regulatory provisions are located",
+    #         type="string",
+    #     ),
+    #     AttributeInfo(
+    #         name="监管要求",
+    #         description="the name of the regulatory policy",
+    #         type="string",
+    #     ),
     # ]
-    # prompt = ChatPromptTemplate.from_messages(messages)
+    # document_content_description = "Contents of regulatory provisions"
+
+    # selfquery_retriever = SelfQueryRetriever.from_llm(
+    #     llm,
+    #     store,
+    #     document_content_description,
+    #     metadata_field_info,
+    #     verbose=True,
+    # )
+
+    if fusion_type:
+        # initialize the ensemble retriever
+        ensemble_retriever = EnsembleRetriever(retrievers=[retriever])
+    else:
+        ensemble_retriever = retriever
 
     prompt = hub.pull("vyang/gpt_answer")
 
-    chain_type_kwargs = {"prompt": prompt}
-
-    # filter_value = {"监管要求": "信息技术管理办法"}
-    llm = get_azurellm(model_name)
-    filter = convert_list_to_dict(items)
-    # retriever = store.as_retriever(search_kwargs={"k": top_k})
-    retriever = store.as_retriever(
-        search_type="similarity", search_kwargs={"k": top_k, "filter": filter}
-    )
-
-    retriever_from_llm = MultiQueryRetriever.from_llm(retriever=retriever, llm=llm)
-
-    compressor = LLMChainExtractor.from_llm(llm)
-
-    _filter = LLMChainFilter.from_llm(llm)
-
-    compression_retriever = ContextualCompressionRetriever(
-        base_compressor=compressor, base_retriever=retriever_from_llm
-    )
-
-    metadata_field_info = [
-        AttributeInfo(
-            name="结构",
-            description="the chapter in which the regulatory provisions are located",
-            type="string",
-        ),
-        AttributeInfo(
-            name="监管要求",
-            description="the name of the regulatory policy",
-            type="string",
-        ),
-    ]
-    document_content_description = "Contents of regulatory provisions"
-
-    selfquery_retriever = SelfQueryRetriever.from_llm(
-        llm,
-        store,
-        document_content_description,
-        metadata_field_info,
-        verbose=True,
-    )
-
-    # initialize the ensemble retriever
-    ensemble_retriever = EnsembleRetriever(
-        retrievers=[retriever_from_llm, selfquery_retriever], weights=[0.5, 0.5]
-    )
-    # chain = RetrievalQA.from_chain_type(
-    #     llm,
-    #     chain_type=chaintype,
-    #     # vectorstore=store,
-    #     retriever=retriever,
-    #     # k=top_k,
-    #     return_source_documents=True,
-    #     chain_type_kwargs=chain_type_kwargs,
-    #     memory=memory,
-    # )
-    # qa_chain = load_qa_chain(llm, chain_type=chaintype)
-    # qa = RetrievalQA(combine_documents_chain=qa_chain, retriever=retriever)
-
-    # result = chain({"query": question})
-    # result = qa({"query": question}, return_only_outputs=True)
-
-    # docs = store.similarity_search(question)
-    # qa_chain=load_qa_with_sources_chain(llm,chain_type=chaintype)
-    # qa_chain=load_qa_chain(llm,chain_type=chaintype)
-    # result = qa_chain({"input_documents": docs, "question": question}, return_only_outputs=True)
-
-    # retrieved_docs = retriever.get_relevant_documents(question)
-    # print(retrieved_docs)
+    output_parser = StrOutputParser()
 
     def format_docs(docs):
         return "\n\n".join(doc.page_content for doc in docs)
 
-    output_parser = StrOutputParser()
-    # rag_chain = (
-    #     {"context": retriever_from_llm | format_docs, "question": RunnablePassthrough()}
-    #     | prompt
-    #     | llm
-    #     | output_parser
-    # )
+    # basic rag chain
+    rag_chain = (
+        # {"context":itemgetter("question")| ensemble_retriever | format_docs,"question": itemgetter("question")}
+        {
+            # Retrieve context using the normal question
+            "context": RunnableLambda(lambda x: x["question"])
+            | ensemble_retriever
+            | format_docs,
+            # Pass on the question
+            "question": lambda x: x["question"],
+        }
+        | prompt
+        | llm
+        | output_parser
+    )
 
+    # rag chain with source
     rag_chain_from_docs = (
         {
             "context": lambda input: format_docs(input["documents"]),
@@ -482,22 +606,177 @@ def gpt_answer(
     )
 
     rag_chain_with_source = RunnableParallel(
-        {"documents": retriever_from_llm, "question": RunnablePassthrough()}
+        {"documents": ensemble_retriever, "question": RunnablePassthrough()}
     ) | {
         # "contents": lambda input: [doc.page_content for doc in input["documents"]],
         "documents": lambda input: [doc for doc in input["documents"]],
         "answer": rag_chain_from_docs,
     }
 
-    result = rag_chain_with_source.invoke(question)
+    # result = rag_chain_with_source.invoke(question)
+    # answer = result["answer"]
+    # # sourcedf=None
+    # source = result["documents"]
+    # sourcedf = docs_to_df(source)
+    # return answer, sourcedf
+
+    # Stepback===================================================
+    stepbackprompt = hub.pull("vyang/rag-stepback")
+
+    response_prompt = hub.pull("langchain-ai/stepback-answer")
+
+    generate_queries_step_back = stepbackprompt | llm | output_parser
+
+    stepback_chain = (
+        {
+            # Retrieve context using the normal question
+            "normal_context": RunnableLambda(lambda x: x["question"])
+            | ensemble_retriever
+            | format_docs,
+            # Retrieve context using the step-back question
+            "step_back_context": generate_queries_step_back
+            | ensemble_retriever
+            | format_docs,
+            # Pass on the question
+            "question": lambda x: x["question"],
+        }
+        | response_prompt
+        | llm
+        | output_parser
+    )
+
+    # hyde chain==============================================
+    # HyDE document genration
+    template = """Please write regulational requirements to answer the question
+    Question: {question}
+    Passage:"""
+    prompt_hyde = ChatPromptTemplate.from_template(template)
+
+    generate_docs_for_retrieval = prompt_hyde | llm | output_parser
+
+    retrieval_chain = generate_docs_for_retrieval | ensemble_retriever | format_docs
+
+    hyde_rag_chain = (
+        {"context": retrieval_chain, "question": itemgetter("question")}
+        | prompt
+        | llm
+        | output_parser
+    )
+
+    # Decomposition=======================================================
+    template = """You are a helpful assistant that generates multiple sub-questions related to an input question. \n
+    The goal is to break down the input into a set of sub-problems / sub-questions that can be answers in isolation. \n
+    Generate multiple search queries related to: {question} \n
+    Output (4 queries):"""
+    prompt_decomposition = ChatPromptTemplate.from_template(template)
+
+    # Chain generate_queries_decomposition
+    generate_queries_decomposition = (
+        prompt_decomposition | llm | StrOutputParser() | (lambda x: x.split("\n"))
+    )
+
+    # RAG prompt
+    prompt_rag = hub.pull("rlm/rag-prompt")
+
+    # chain for decomposition
+    answer_chain = (
+        {
+            "context": itemgetter("question") | ensemble_retriever | format_docs,
+            "question": itemgetter("question"),
+        }
+        | prompt_rag
+        | llm
+        | StrOutputParser()
+    )
+
+    def retrieve_and_rag(sub_questions):
+        """RAG on each sub-question"""
+
+        # Use our decomposition /
+        # sub_questions = generate_queries_decomposition.invoke({"question":question})
+
+        # Initialize a list to hold RAG chain results
+        rag_results = []
+
+        for sub_question in sub_questions:
+
+            # Retrieve documents for each sub-question
+            # retrieved_docs = retriever.get_relevant_documents(sub_question)
+
+            # Use retrieved documents and sub-question in RAG chain
+            # answer = (
+            #     {"context": itemgetter("question") | ensemble_retriever | format_docs, "question": itemgetter("question")
+
+            #     }|
+
+            #     prompt_rag | llm | StrOutputParser()).invoke({#"context": retrieved_docs,
+            #                                                         "question": sub_question})
+            answer = answer_chain.invoke({"question": sub_question})
+
+            rag_results.append(answer)
+
+        return rag_results
+
+    # Wrap the retrieval and RAG process in a RunnableLambda for integration into a chain
+    # answers, questions = retrieve_and_rag(question)
+
+    def format_qa_pairs(input):
+        """Format Q and A pairs"""
+
+        formatted_string = ""
+        for i, (question, answer) in enumerate(
+            zip(input["questions"], input["answers"]), start=1
+        ):
+            formatted_string += f"Question {i}: {question}\nAnswer {i}: {answer}\n\n"
+        return formatted_string.strip()
+
+    # context = format_qa_pairs({"questions": questions, "answers": answers})
+
+    # print(context)
+    # Prompt
+    decom_template = """Here is a set of Q+A pairs:
+
+    {context}
+
+    Use these to synthesize an answer to the question: {question}
+    """
+
+    decom_prompt = ChatPromptTemplate.from_template(decom_template)
+
+    decom_rag_chain = (
+        {
+            "context": {
+                "questions": {"question": itemgetter("question")}
+                | generate_queries_decomposition,
+                "answers": {"question": itemgetter("question")}
+                | generate_queries_decomposition
+                | RunnableLambda(retrieve_and_rag),
+            }
+            | RunnableLambda(format_qa_pairs),
+            "question": itemgetter("question"),
+        }
+        | decom_prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # choose chain based on rag type
+    if rag_type == "basic":
+        final_chain = rag_chain
+    elif rag_type == "stepback":
+        final_chain = stepback_chain
+    elif rag_type == "hyde":
+        final_chain = hyde_rag_chain
+    elif rag_type == "decomposition":
+        final_chain = decom_rag_chain
+
+    print(final_chain.get_graph().print_ascii())
+    print(final_chain.get_prompts())
+
+    result = final_chain.stream({"question": question})
 
     print(result)
-
-    answer = result["answer"]
-    # sourcedf=None
-    source = result["documents"]
-    sourcedf = docs_to_df(source)
-    return answer, sourcedf
+    return result, []
 
 
 def similarity_search(question, topk=4, industry="", items=[]):
@@ -554,9 +833,11 @@ def similarity_search(question, topk=4, industry="", items=[]):
     filter = convert_list_to_dict(items)
     print(filter)
 
-    docs = store.similarity_search(query=question, k=topk, filter=filter)
-    # retriever = store.as_retriever(search_type="similarity",search_kwargs={ "k":topk ,"filter":filter})
-    # docs = retriever.get_relevant_documents(question)
+    # docs = store.similarity_search(query=question, k=topk, filter=filter)
+    retriever = store.as_retriever(
+        search_type="similarity", search_kwargs={"k": topk, "filter": filter}
+    )
+    docs = retriever.get_relevant_documents(question)
     df = docs_to_df(docs)
     return df
 
