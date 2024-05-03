@@ -46,4 +46,4 @@ huggingface_hub==0.13.3
 python-dotenv==1.0.0
 cohere==4.3.1
 supabase==1.2.0
-pymongo==4.3.3
+pymongo==4.6.3
