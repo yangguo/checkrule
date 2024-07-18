@@ -1,14 +1,11 @@
 import asyncio
-import io
-from datetime import date, datetime
-from typing import List, Union
+from datetime import date
+from typing import List
 
-import pandas as pd
 from dbcbirc import searchcbirc
 from dbcsrc2 import searchcsrc2
 from dbpboc import searchpboc
-from fastapi import FastAPI, File, Query, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI
 from gptfuncbk import get_audit_steps, gpt_answer, similarity_search
 from pydantic import BaseModel
 
@@ -71,6 +68,61 @@ class AuditRequest(BaseModel):
 
 class IndustryInput(BaseModel):
     industry_choice: str = ""
+
+
+# class InputData(BaseModel):
+#     point: str
+#     params: dict = {}
+
+
+# @app.post("/testing")
+# async def dify_receive(data: InputData = Body(...), authorization: str = Header(None)):
+#     """
+#     Receive API query data from Dify.
+#     """
+#     expected_api_key = "123456"  # TODO Your API key of this API
+#     auth_scheme, _, api_key = authorization.partition(" ")
+
+#     if auth_scheme.lower() != "bearer" or api_key != expected_api_key:
+#         raise HTTPException(status_code=401, detail="Unauthorized")
+
+#     print(data)
+
+#     point = data.point
+
+#     # for debug
+#     print(f"point: {point}")
+
+#     if point == "ping":
+#         return {"result": "pong"}
+
+#     elif point == "keywords":
+#         return await keywords_dify(params=data.params)
+
+#     raise HTTPException(status_code=400, detail="Not implemented")
+
+
+# async def keywords_dify(params: dict):
+#     inputs = params.get("inputs", {})
+
+#     query = inputs.get("query", "")
+#     number = inputs.get("number", 0)
+#     option = inputs.get("option", "")
+#     make_choice = inputs.get("make_choice", [])
+#     choicels = await asyncio.to_thread(searchByIndustrysupa, option)
+#     if make_choice == []:
+#         make_choice = choicels
+
+#     ruledf, rulels = await asyncio.to_thread(searchByName, "", option)
+#     # Process the input data and generate a response
+#     result_df = await asyncio.to_thread(searchByItem, ruledf, make_choice, "", query)
+
+#     if number != 0:
+#         result_df = result_df.head(number)
+
+#     response_data = result_df.to_dict(orient="records")
+
+#     return {"response_data": response_data}
 
 
 @app.post("/search")

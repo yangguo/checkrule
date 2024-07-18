@@ -3,12 +3,8 @@ from flask.json import JSONEncoder
 from datetime import datetime, date
 from werkzeug.exceptions import BadRequest
 
-from gptfuncbk import get_audit_steps, gpt_answer, similarity_search
+from gptfuncbk import similarity_search
 from checkrule import searchByItem, searchByName
-
-from dbcbirc import searchcbirc
-from dbcsrc2 import searchcsrc2
-from dbpboc import searchpboc
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -25,20 +21,23 @@ class CustomJSONEncoder(JSONEncoder):
             return list(iterable)
         return JSONEncoder.default(self, obj)
 
+
 app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
+
 
 @app.route("/")
 def read_root():
     return {"Hello": "World"}
 
-@app.route('/search', methods=['POST'])
+
+@app.route("/search", methods=["POST"])
 def search():
     try:
         input_data = request.get_json()
-        query = input_data.get('query')
-        number = input_data.get('number')
-        option = input_data.get('option')
+        query = input_data.get("query")
+        number = input_data.get("number")
+        option = input_data.get("option")
 
         result_df = similarity_search(query, topk=number, industry=option, items=[])
 
@@ -67,9 +66,6 @@ def keywords():
         return jsonify(response_data=response_data)
     except Exception as e:
         raise BadRequest(str(e))
-
-
-
 
 
 if __name__ == "__main__":

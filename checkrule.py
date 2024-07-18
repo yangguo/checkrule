@@ -1,5 +1,4 @@
 import pandas as pd
-import streamlit as st
 
 from gptfuc import industry_name_to_code, init_supabase
 from utils import (  # roformer_encoder; get_embedding,;; df2aggrid,
@@ -65,7 +64,6 @@ def get_samplerule(key_list, industry_choice):
 
 # @st.cache_data
 def searchByNamesupa(search_text, industry_choice):
-
     table_name = industry_name_to_code(industry_choice)
 
     # print(table_name)
@@ -101,7 +99,9 @@ def searchByName(search_text, industry_choice):
 
 
 def searchByItem(searchresult, make_choice, column_text, item_text):
-
+    print(make_choice)
+    print(column_text)
+    print(item_text)
     # split words item_text
     item_text_list = split_words(item_text)
     column_text = fix_section_text(column_text)
@@ -194,7 +194,7 @@ def get_allchildren(df, ids):
 
 
 # get org list
-@st.cache(allow_output_mutation=True)
+# @st.cache(allow_output_mutation=True)
 def get_orglist():
     plcdf = pd.read_csv(orgpath)
     cols = ["id", "pId", "name"]
@@ -204,7 +204,7 @@ def get_orglist():
 
 
 # get plcdf
-@st.cache(allow_output_mutation=True)
+# @st.cache(allow_output_mutation=True)
 def get_plcdf():
     plcdf = pd.read_csv(plcpath)
     cols = [
@@ -300,7 +300,15 @@ def get_lawdtlbyid(ids):
     metadf = metadf[metacols]
     # fillna to empty
     metadf = metadf.fillna("")
-    metadf.columns = ["文件名称", "文件名称注解", "法律条文名称", "法律条文版本", "文号", "正文", "正文注解"]
+    metadf.columns = [
+        "文件名称",
+        "文件名称注解",
+        "法律条文名称",
+        "法律条文版本",
+        "文号",
+        "正文",
+        "正文注解",
+    ]
     metadf = metadf.reset_index(drop=True)
     dtldf = pd.read_csv(dtlpath)
     dtldf = dtldf[dtldf["id"].isin(ids)]

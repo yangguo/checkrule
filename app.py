@@ -4,6 +4,7 @@ from checkrule import (  # searchrule,; get_lawdtlbyid,; searchByNamesupa,; disp
     searchByIndustrysupa,
     searchByItem,
     searchByName,
+    searchByNamesupa,
 )
 
 # from plc2audit import predict
@@ -75,7 +76,10 @@ def main():
 
     # else:
 
-    match = st.sidebar.radio("搜索方式", ("关键字搜索", "模糊搜索", "智能问答", "智能对话", "生成模型", "模型管理"))
+    match = st.sidebar.radio(
+        "搜索方式",
+        ("关键字搜索", "模糊搜索", "智能问答", "智能对话", "生成模型", "模型管理"),
+    )
     # initialize session value search_result
     if "search_result" not in st.session_state:
         st.session_state["search_result"] = None
@@ -84,9 +88,8 @@ def main():
     placeholder = st.empty()
 
     if match == "关键字搜索":
-
         name_text = ""
-        searchresult, choicels = searchByName(name_text, industry_choice)
+        searchresult, choicels = searchByNamesupa(name_text, industry_choice)
 
         make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
 
@@ -166,7 +169,6 @@ def main():
             resultdf = st.session_state["search_result"]
 
     elif match == "模糊搜索":
-
         choicels = searchByIndustrysupa(industry_choice)
         make_choice = st.sidebar.multiselect("选择监管制度:", choicels)
 
@@ -349,10 +351,11 @@ def main():
             [
                 "mistral",
                 "qwen:7b",
+                "gemma:7b",
                 "gpt-35-turbo",
-                "gpt-35-turbo-16k",
-                "gpt-4",
-                "gpt-4-32k",
+                # "gpt-35-turbo-16k",
+                # "gpt-4",
+                # "gpt-4-32k",
                 "gpt-4-turbo",
                 "qwen-turbo",
                 "qwen-plus",
@@ -362,7 +365,7 @@ def main():
                 # "baichuan2-13b-chat-v1",
                 "ERNIE-Bot-4",
                 "ERNIE-Bot-turbo",
-                "ChatGLM2-6B-32K",
+                # "ChatGLM2-6B-32K",
                 "Yi-34B-Chat",
                 "Mixtral-8x7B-Instruct",
                 "gemini-pro",
@@ -374,6 +377,15 @@ def main():
                 "moonshot-v1-128k",
                 "glm-3-turbo",
                 "glm-4",
+                "iflytek-spark3",
+                "iflytek-spark3.5",
+                "claude-3-opus-20240229",
+                "claude-3-sonnet-20240229",
+                "claude-2.1",
+                "claude-instant-1.2",
+                "mistral-small-latest",
+                "mistral-medium-latest",
+                "mistral-large-latest",
             ],
         )
         # choose retrieval type
@@ -385,8 +397,11 @@ def main():
 
         # choose rag type
         rag_type = st.sidebar.selectbox(
-            "选择RAG类型", ["basic", "stepback", "hyde", "decomposition"]
+            "选择RAG类型", ["basic", "withsource", "stepback", "hyde", "decomposition"]
         )
+
+        # choose agent or not
+        agent_type = st.sidebar.checkbox("是否使用代理", value=False)
 
         # Initialize chat history
         if "messages" not in st.session_state:
@@ -407,7 +422,7 @@ def main():
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            response, source = gpt_answer(
+            response = gpt_answer(
                 prompt,
                 industry_choice,
                 top,
@@ -415,17 +430,16 @@ def main():
                 make_choice,
                 retriever_type,
                 fusion_type,
-                rag_type
-                # memory,
+                rag_type,
+                agent_type,
             )
             # Display assistant response in chat message container
             with st.chat_message("assistant"):
-
                 # st.markdown(response)
                 # outstr = response
                 outstr = st.write_stream(response)
-                with st.expander("来源："):
-                    st.table(source)
+                # with st.expander("来源："):
+                #     st.table(source)
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": outstr})
 

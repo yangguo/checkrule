@@ -13,37 +13,43 @@ import pandas as pd
 # import streamlit as st
 from dotenv import load_dotenv
 from langchain import hub
-from langchain.chains.query_constructor.base import AttributeInfo
+from langchain.agents import (
+    AgentExecutor,
+    create_json_chat_agent,
+)
+from langchain.output_parsers import OutputFixingParser, RetryOutputParser
 from langchain.prompts import (
     ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
+    PromptTemplate,
 )
 from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
 from langchain.retrievers.document_compressors import (
     CohereRerank,
-    LLMChainExtractor,
-    LLMChainFilter,
 )
 from langchain.retrievers.multi_query import MultiQueryRetriever
-from langchain.retrievers.self_query.base import SelfQueryRetriever
 from langchain.schema import StrOutputParser
+from langchain.tools.retriever import create_retriever_tool
+from langchain_anthropic import ChatAnthropic
 from langchain_community.chat_models import (
-    ChatBaichuan,
     ChatOllama,
     QianfanChatEndpoint,
 )
+from langchain_community.chat_models.sparkllm import ChatSparkLLM
 from langchain_community.chat_models.tongyi import ChatTongyi
+
+# from tongyifix import ChatTongyi
 from langchain_community.vectorstores import (  # FAISS,; Chroma,; Milvus,; OpenSearchVectorSearch,; Pinecone,; Qdrant,
     Neo4jVector,
     SupabaseVectorStore,
 )
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.runnables import (
     RunnableLambda,
     RunnableParallel,
-    RunnablePassthrough,
 )
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings, ChatOpenAI
 from supabase.client import Client, create_client
 
@@ -70,6 +76,7 @@ AZURE_DEPLOYMENT_NAME_16K = os.environ.get("AZURE_DEPLOYMENT_NAME_16K")
 AZURE_DEPLOYMENT_NAME_GPT4 = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4")
 AZURE_DEPLOYMENT_NAME_GPT4_32K = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4_32K")
 AZURE_DEPLOYMENT_NAME_GPT4_TURBO = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT4_TURBO")
+AZURE_DEPLOYMENT_NAME_GPT35_TURBO = os.environ.get("AZURE_DEPLOYMENT_NAME_GPT35_TURBO")
 AZURE_DEPLOYMENT_NAME_EMBEDDING = os.environ.get("AZURE_DEPLOYMENT_NAME_EMBEDDING")
 
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
@@ -84,6 +91,10 @@ NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD")
 BAICHUAN_API_KEY = os.environ.get("BAICHUAN_API_KEY")
 MOONSHOT_API_KEY = os.environ.get("MOONSHOT_API_KEY")
 ZHIPUAI_API_KEY = os.environ.get("ZHIPUAI_API_KEY")
+IFLYTEK_SPARK_APP_ID = os.environ.get("IFLYTEK_SPARK_APP_ID")
+IFLYTEK_SPARK_API_KEY = os.environ.get("IFLYTEK_SPARK_API_KEY")
+IFLYTEK_SPARK_API_SECRET = os.environ.get("IFLYTEK_SPARK_API_SECRET")
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY")
 
 # model_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 # embeddings =HuggingFaceEmbeddings(model_name=model_name)
@@ -98,62 +109,14 @@ ZHIPUAI_API_KEY = os.environ.get("ZHIPUAI_API_KEY")
 embeddings = AzureOpenAIEmbeddings(
     azure_endpoint=AZURE_BASE_URL,
     azure_deployment=AZURE_DEPLOYMENT_NAME_EMBEDDING,
-    openai_api_version="2023-08-01-preview",
+    openai_api_version="2024-02-15-preview",
     openai_api_key=AZURE_API_KEY,
 )
 
-# os.environ["OPENAI_API_TYPE"] = "azure"
-# os.environ["OPENAI_API_BASE"] = AZURE_BASE_URL
-# os.environ["OPENAI_API_KEY"] = AZURE_API_KEY
-# os.environ["OPENAI_API_VERSION"] = "2023-03-15-preview"
-
-# embeddings = OpenAIEmbeddings(
-#     deployment="ada02",
-#     model="text-embedding-ada-002",
-#     openai_api_base=AZURE_BASE_URL,
-#     openai_api_type="azure",
-#     openai_api_key=AZURE_API_KEY,
-#     openai_api_version="2023-05-15",
-# )
-
-# embeddings = EmbaasEmbeddings(
-#     model="paraphrase-multilingual-mpnet-base-v2",
-#     instruction="",
-# )
-
-# openai.api_base="https://tiny-shadow-5144.vixt.workers.dev/v1"
-# openai.api_base="https://super-heart-4116.vixt.workers.dev/v1"
-# openai.api_base = "https://az.139105.xyz/v1"
-# openai.api_base = "https://op.139105.xyz/v1"
-
-
-# llm = ChatOpenAI(model_name="gpt-3.5-turbo",
-#                  openai_api_base="https://op.139105.xyz/v1",
-#                  openai_api_key=api_key)
-
-# llm = ChatOpenAI(model_name="gpt-3.5-turbo",
-#                  openai_api_base="https://az.139105.xyz/v1",
-#                  openai_api_key=AZURE_API_KEY)
-
-# llm = ErnieBotChat(ernie_client_id='', ernie_client_secret='')
-
-# llm = Minimax(minimax_api_key="", minimax_group_id="")
-
-# use azure model
-# llm = AzureChatOpenAI(
-#     openai_api_base=AZURE_BASE_URL,
-#     openai_api_version="2023-07-01-preview",
-#     deployment_name=AZURE_DEPLOYMENT_NAME,
-#     # deployment_name=AZURE_DEPLOYMENT_NAME_16K,
-#     # deployment_name=AZURE_DEPLOYMENT_NAME_GPT4,
-#     # deployment_name=AZURE_DEPLOYMENT_NAME_GPT4_32K,
-#     openai_api_key=AZURE_API_KEY,
-#     openai_api_type = "azure",
-# )
 
 # convert gpt model name to azure deployment name
 gpt_to_deployment = {
-    "gpt-35-turbo": AZURE_DEPLOYMENT_NAME,
+    "gpt-35-turbo": AZURE_DEPLOYMENT_NAME_GPT35_TURBO,
     "gpt-35-turbo-16k": AZURE_DEPLOYMENT_NAME_16K,
     "gpt-4": AZURE_DEPLOYMENT_NAME_GPT4,
     "gpt-4-32k": AZURE_DEPLOYMENT_NAME_GPT4_32K,
@@ -206,11 +169,11 @@ def get_chatllm(model_name):
             model=model_name,
             # streaming=True,
         )
-    elif model_name == "gemini-pro":
+    elif model_name == "gemini-1.0-pro":
         llm = ChatGoogleGenerativeAI(
             model=model_name, convert_system_message_to_human=True
         )
-    elif model_name == "mistral" or model_name == "qwen:7b":
+    elif model_name == "mistral" or model_name == "qwen:7b" or model_name == "gemma:7b":
         llm = ChatOllama(
             model=model_name,
         )
@@ -240,6 +203,40 @@ def get_chatllm(model_name):
             base_url="https://open.bigmodel.cn/api/paas/v4",
             api_key=generate_token(ZHIPUAI_API_KEY, 3600),
         )
+    elif model_name == "iflytek-spark3":
+        llm = ChatSparkLLM(
+            spark_app_id=IFLYTEK_SPARK_APP_ID,
+            spark_api_key=IFLYTEK_SPARK_API_KEY,
+            spark_api_secret=IFLYTEK_SPARK_API_SECRET,
+            spark_api_url="wss://spark-api.xf-yun.com/v3.1/chat",
+            spark_llm_domain="generalv3",
+            streaming=True,
+        )
+    elif model_name == "iflytek-spark3.5":
+        llm = ChatSparkLLM(
+            spark_app_id=IFLYTEK_SPARK_APP_ID,
+            spark_api_key=IFLYTEK_SPARK_API_KEY,
+            spark_api_secret=IFLYTEK_SPARK_API_SECRET,
+            spark_api_url="wss://spark-api.xf-yun.com/v3.5/chat",
+            spark_llm_domain="generalv3.5",
+            streaming=True,
+        )
+    elif (
+        model_name == "claude-3-opus-20240229"
+        or model_name == "claude-3-sonnet-20240229"
+        or model_name == "claude-2.1"
+        or model_name == "claude-instant-1.2"
+    ):
+        llm = ChatAnthropic(
+            temperature=0,
+            model_name=model_name,
+        )
+    elif (
+        model_name == "mistral-small-latest"
+        or model_name == "mistral-medium-latest"
+        or model_name == "mistral-large-latest"
+    ):
+        llm = ChatMistralAI(model=model_name, mistral_api_key=MISTRAL_API_KEY)
     else:
         llm = get_azurellm(model_name)
     return llm
@@ -250,7 +247,7 @@ def get_azurellm(model_name):
     deployment_name = gpt_to_deployment[model_name]
     llm = AzureChatOpenAI(
         azure_endpoint=AZURE_BASE_URL,
-        openai_api_version="2023-12-01-preview",
+        openai_api_version="2024-02-15-preview",
         azure_deployment=deployment_name,
         openai_api_key=AZURE_API_KEY,
         temperature=0.0,
@@ -474,9 +471,29 @@ def gpt_answer(
     retriever_type="",
     fusion_type=False,
     rag_type="basic",
-    # memory=StreamlitChatMessageHistory(),
+    agent_type=False,
 ):
-    collection_name = industry_name_to_code(industry)
+    llm = get_chatllm(model_name)
+
+    #     schema = {
+    #     "properties": {
+    #         "industry": {
+    #             "type": "string",
+    #             "enum": ["bank", "securities"],
+    #             "description": "The industry to search for regulatory documents.",
+    #         },
+    #     },
+    #     "required": ["industry"],
+    # }
+    #     industry_chain = create_tagging_chain(schema, llm)
+    #     industry_result=industry_chain.run(question)
+    #     industry_name=industry_result["industry"]
+    #     print(industry_name)
+
+    collection_name = get_collection_name(model_name, question)
+    print(collection_name)
+    # collection_name = industry_name_to_code(industry)
+
     # get faiss client
     # store = FAISS.load_local(fileidxfolder, OpenAIEmbeddings())
 
@@ -519,7 +536,6 @@ def gpt_answer(
     # )
 
     # filter_value = {"监管要求": "信息技术管理办法"}
-    llm = get_chatllm(model_name)
     filter = convert_list_to_dict(items)
 
     base_retriever = store.as_retriever(
@@ -578,7 +594,7 @@ def gpt_answer(
     def format_docs(docs):
         return "\n\n".join(doc.page_content for doc in docs)
 
-    # basic rag chain
+    # basic rag chain==============================================
     rag_chain = (
         # {"context":itemgetter("question")| ensemble_retriever | format_docs,"question": itemgetter("question")}
         {
@@ -594,7 +610,7 @@ def gpt_answer(
         | output_parser
     )
 
-    # rag chain with source
+    # rag chain with source==============================================
     rag_chain_from_docs = (
         {
             "context": lambda input: format_docs(input["documents"]),
@@ -606,7 +622,10 @@ def gpt_answer(
     )
 
     rag_chain_with_source = RunnableParallel(
-        {"documents": ensemble_retriever, "question": RunnablePassthrough()}
+        {
+            "documents": itemgetter("question") | ensemble_retriever,
+            "question": itemgetter("question"),
+        }
     ) | {
         # "contents": lambda input: [doc.page_content for doc in input["documents"]],
         "documents": lambda input: [doc for doc in input["documents"]],
@@ -699,7 +718,6 @@ def gpt_answer(
         rag_results = []
 
         for sub_question in sub_questions:
-
             # Retrieve documents for each sub-question
             # retrieved_docs = retriever.get_relevant_documents(sub_question)
 
@@ -769,14 +787,104 @@ def gpt_answer(
         final_chain = hyde_rag_chain
     elif rag_type == "decomposition":
         final_chain = decom_rag_chain
+    elif rag_type == "withsource":
+        final_chain = rag_chain_with_source
 
     print(final_chain.get_graph().print_ascii())
     print(final_chain.get_prompts())
 
-    result = final_chain.stream({"question": question})
+    # user tools==============================================
+    tool = create_retriever_tool(
+        ensemble_retriever,
+        "search_policy",
+        "Search for and retriev regulatory documents in response to a specific input question.",
+    )
+    tools = [tool]
 
-    print(result)
-    return result, []
+    # prompt = hub.pull("hwchase17/openai-tools-agent")
+    # Construct the OpenAI Tools agent
+    # agent = create_openai_tools_agent(llm, tools, prompt)
+
+    # prompt = hub.pull("hwchase17/openai-functions-agent")
+    # Construct the OpenAI Functions agent
+    # agent = create_openai_functions_agent(llm, tools, prompt)
+
+    # prompt = hub.pull("hwchase17/react")
+    # Construct the ReAct agent
+    # agent = create_react_agent(llm, tools, prompt)
+
+    # prompt = hub.pull("hwchase17/structured-chat-agent")
+    # Construct the JSON agent
+    # agent = create_structured_chat_agent(llm, tools, prompt)
+
+    prompt = hub.pull("hwchase17/react-chat-json")
+    # Construct the JSON agent
+    agent = create_json_chat_agent(llm, tools, prompt)
+
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        return_intermediate_steps=True,
+        handle_parsing_errors=True,
+        max_iterations=5,
+    )
+
+    if agent_type is False:
+        result = final_chain.stream({"question": question})
+        print(result)
+        return fmt_rag(result)
+    else:
+        result = agent_executor.stream({"input": question})
+        # return result
+        return fmt_agent(result)
+
+
+def fmt_rag(stream):
+    """Format RAG result"""
+    for chunk in stream:
+        # documents
+        if "documents" in chunk:
+            source = chunk["documents"]
+            sourcels = source_to_list(source)
+            for sourcedf in sourcels:
+                yield (f"{sourcedf}")
+                # yield new line
+                yield ("\n\n")
+            # yield new line
+            yield ("============================================\n\n")
+
+        # answer
+        elif "answer" in chunk:
+            yield (f"{chunk['answer']}")
+        else:
+            yield (f"{chunk}")
+
+
+def fmt_agent(stream):
+    """Format agent result"""
+    for chunk in stream:
+        # Agent Action
+        if "actions" in chunk:
+            for action in chunk["actions"]:
+                yield (
+                    f"Calling Tool ```{action.tool}``` with input ```{action.tool_input}```"
+                )
+                # yield new line
+                yield ("\n\n")
+
+        # Observation
+        elif "steps" in chunk:
+            for step in chunk["steps"]:
+                yield (f"Got result: ```{step.observation}```")
+                # yield new line
+                yield ("\n\n")
+
+        # Final result
+        elif "output" in chunk:
+            yield (f'Final Output: {chunk["output"]}')
+        else:
+            yield (f"{chunk}")
 
 
 def similarity_search(question, topk=4, industry="", items=[]):
@@ -906,3 +1014,85 @@ def convert_list_to_dict(lst):
     else:
         return {}
         # return {"监管要求": {"$in": [item for item in lst]}}
+
+
+def source_to_list(source):
+    """
+    Converts a list of documents to a pandas dataframe.
+    """
+    data = []
+    for document in source:
+        page_content = document.page_content
+        metadata = document.metadata
+        plc = metadata["监管要求"]
+        sec = metadata["结构"]
+        # row = {"条款": page_content, "监管要求": plc, "结构": sec}
+        row = "监管要求: " + plc + " - " + sec + "\n\n" + "条款: " + page_content
+        data.append(row)
+    return data
+
+
+def get_collection_name(model_name, question):
+    llm = get_chatllm(model_name)
+    # use function call
+    #     schema = {
+    #     "properties": {
+    #         "industry": {
+    #             "type": "string",
+    #             "enum": ["bank", "securities"],
+    #             "description": "The industry to search for regulatory documents.",
+    #         },
+    #     },
+    #     "required": ["industry"],
+    # }
+    #     industry_chain = create_tagging_chain(schema, llm)
+    #     industry_result=industry_chain.run(question)
+    #     industry_name=industry_result["industry"]
+    #     print(industry_name)
+
+    # use pydantic
+    # Define your desired data structure.
+    class Industry(BaseModel):
+        industry: str = Field(
+            description="The industry category of the question.",
+            enum=["bank", "securities"],
+            default="bank",
+        )
+
+    # Set up a parser + inject instructions into the prompt template.
+    parser = JsonOutputParser(pydantic_object=Industry)
+
+    prompt = PromptTemplate(
+        template="""
+    As an industry expert, you are presented with a question from a customer and are tasked with identifying and categorizing it within the most appropriate industry."\n{format_instructions}\n{query}\n""",
+        input_variables=["query"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+    industry_chain = prompt | llm | parser
+
+    # use llm retryoutputparser
+    retry_parser = RetryOutputParser.from_llm(parser=parser, llm=llm)
+
+    completion_chain = prompt | llm
+
+    retry_industry_chain = RunnableParallel(
+        completion=completion_chain, prompt_value=prompt
+    ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+
+    # output fix
+    fix_parser = OutputFixingParser.from_llm(parser=parser, llm=llm)
+
+    try:
+        industry_result = industry_chain.invoke({"query": question})
+        industry_name = industry_result["industry"]
+    except Exception as e:
+        print(e)
+        # industry_result = retry_industry_chain.invoke({"query": question})
+        # fix_parser.parse(industry_result)
+        industry_name = "bank"
+
+    # check industry name is in ['bank', 'securities']
+    if industry_name not in ["bank", "securities"]:
+        industry_name = "bank"
+
+    return industry_name

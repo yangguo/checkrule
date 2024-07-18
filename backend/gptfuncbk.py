@@ -1,21 +1,16 @@
-import json
 import os
 
-import openai
 import pandas as pd
-import pinecone
+
+# import pinecone
 from dotenv import load_dotenv
 from langchain.chains import LLMChain, RetrievalQA
-from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import (
-    EmbaasEmbeddings,
-    HuggingFaceEmbeddings,
     HuggingFaceHubEmbeddings,
-    OpenAIEmbeddings,
 )
 
 # from langchain.indexes import VectorstoreIndexCreator
-from langchain.llms import Cohere, OpenAIChat
 from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 from langchain.prompts import PromptTemplate
 from langchain.prompts.chat import (
@@ -24,12 +19,6 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
 )
 from langchain.vectorstores import (
-    FAISS,
-    Chroma,
-    Milvus,
-    OpenSearchVectorSearch,
-    Pinecone,
-    Qdrant,
     SupabaseVectorStore,
 )
 from supabase import Client, create_client
@@ -270,9 +259,16 @@ def convert_list_to_dict(lst):
 
 def get_audit_steps(text, model_name="gpt-3.5-turbo"):
     response_schemas = [
-        ResponseSchema(name="审计步骤", description="针对监管要求，需要执行的多项具体审计工作步骤"),
-        ResponseSchema(name="访谈问题", description="针对监管要求，需要向被审计方提出的多项访谈问题"),
-        ResponseSchema(name="资料清单", description="针对监管要求，需要被审计方准备的多项审计资料"),
+        ResponseSchema(
+            name="审计步骤", description="针对监管要求，需要执行的多项具体审计工作步骤"
+        ),
+        ResponseSchema(
+            name="访谈问题",
+            description="针对监管要求，需要向被审计方提出的多项访谈问题",
+        ),
+        ResponseSchema(
+            name="资料清单", description="针对监管要求，需要被审计方准备的多项审计资料"
+        ),
     ]
 
     output_parser = StructuredOutputParser.from_response_schemas(response_schemas)

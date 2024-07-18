@@ -120,3 +120,4 @@ tiktoken
 dashscope
 qianfan 
 langchain-google-genai
+websocket-client

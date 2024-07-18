@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List
 
 import pandas as pd
-from database import get_collection, get_data
+from database import get_collection
 
 
 # search by filename, date, wenhao,org,law,label

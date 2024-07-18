@@ -14,7 +14,6 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 
 def searchByName(search_text, industry_choice):
-
     table_name = industry_name_to_code(industry_choice)
 
     # print(table_name)
@@ -35,7 +34,9 @@ def searchByName(search_text, industry_choice):
 
 
 def searchByItem(searchresult, make_choice, column_text, item_text):
-
+    print(make_choice)
+    print(column_text)
+    print(item_text)
     # split words item_text
     item_text_list = split_words(item_text)
     column_text = fix_section_text(column_text)

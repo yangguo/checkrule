@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import List
 
 import pandas as pd
-from database import get_collection, get_data
+from database import get_collection
 
 
 def searchcbirc(
@@ -80,7 +79,6 @@ def searchcbirc(
     else:
         searchdf = pd.DataFrame(columns=cols)
     return searchdf
-
 
 
 def split_words(text):

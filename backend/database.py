@@ -8,6 +8,7 @@ load_dotenv()
 
 MONGO_DB_URL = os.environ.get("MONGO_DB_URL")
 
+
 # Connect to the MongoDB
 def get_mongo_remote():
     client = pymongo.MongoClient(MONGO_DB_URL)
